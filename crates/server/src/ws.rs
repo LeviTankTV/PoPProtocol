@@ -228,6 +228,10 @@ async fn dispatch(
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
             state.lobby.add_bot(record.player_id, rid, level).await.map_err(lobby)?;
         }
+        ClientMsg::SetColor { color } => {
+            let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
+            state.lobby.set_color(record.player_id, rid, color).await.map_err(lobby)?
+        }
         ClientMsg::RemoveBot { player_id } => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
             state.lobby.remove_bot(record.player_id, rid, player_id).await.map_err(lobby)?;

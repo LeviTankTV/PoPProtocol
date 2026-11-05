@@ -26,7 +26,7 @@ class R {
   vec(fn) { const n = this.u64(); const out = []; for (let k = 0; k < n; k++) out.push(fn()); return out; }
 }
 
-const PROTOCOL_VERSION = 2;
+const PROTOCOL_VERSION = 3;
 
 // Явные функции кодирования: читаемость важнее краткости.
 function mHello(name, token) {
@@ -58,6 +58,7 @@ const mEmote = (n) => new W().u32(11).u8(n).bytes();
 const mPing = (n) => new W().u32(12).u64(n).bytes();
 const mAddBot = (level) => new W().u32(13).u32(level).bytes();
 const mRemoveBot = (id) => new W().u32(14).u32(id).bytes();
+const mSetColor = (color) => new W().u32(15).u8(color).bytes();
 
 function decode(buf) {
   const r = new R(buf);
@@ -120,4 +121,4 @@ function readSnapshot(r) {
   return { t: "Snapshot", tick, field_w, field_h, phase, level, players, balls, bricks_upsert, bricks_removed, capsules, bullets, events, boss, combo, scores, projs };
 }
 
-window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, decode };
+window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, decode };

@@ -70,6 +70,7 @@ const S = {
   particles: [],         // локальный сок: {x,y,vx,vy,life,t,color} + кольца {ring:true}
   particlesOn: true,
   brickMax: new Map(),   // id -> максимум hp (для трещин)
+  brickBorn: new Map(),  // id -> время появления (анимация scale-in)
   trails: new Map(),     // шлейф мячей: id -> [{x,y}]
   trailT: 0,
   fpsFrames: 0, fpsAcc: 0, fps: 60,
@@ -155,8 +156,9 @@ function handle(m) {
 }
 
 function onSnapshot(s) {
-  if (s.level !== S.level) { S.bricks.clear(); S.brickMax.clear(); S.level = s.level; }
+  if (s.level !== S.level) { S.bricks.clear(); S.brickMax.clear(); S.brickBorn.clear(); S.level = s.level; }
   for (const b of s.bricks_upsert) {
+    if (!S.bricks.has(b.id)) S.brickBorn.set(b.id, performance.now());
     S.bricks.set(b.id, b);
     const m = S.brickMax.get(b.id) || 0;
     if (b.hp > m) S.brickMax.set(b.id, b.hp);
@@ -275,6 +277,25 @@ function renderRoom() {
   const r = S.room;
   if (!r) return;
   document.getElementById("room-title").textContent = r.name + " · код " + r.code;
+  // палитра: клик по цвету меняет ракетку/мячи (если свободен)
+  const pal = document.getElementById("color-palette");
+  if (pal) {
+    pal.innerHTML = "";
+    const taken = new Set([
+      ...r.players.filter((p) => p.id !== S.myId).map((p) => p.color),
+      ...r.spectators.filter((p) => p.id !== S.myId).map((p) => p.color),
+    ]);
+    const me = r.players.find((p) => p.id === S.myId) || r.spectators.find((p) => p.id === S.myId);
+    for (let i = 0; i < COLORS.length; i++) {
+      const dot = document.createElement("span");
+      dot.className = "color-dot" + (me && me.color === i ? " chosen" : "");
+      dot.style.background = COLORS[i];
+      if (taken.has(i)) dot.style.opacity = "0.25";
+      dot.title = taken.has(i) ? "занято" : "выбрать цвет";
+      dot.onclick = () => { if (!taken.has(i)) send(P.mSetColor(i)); };
+      pal.appendChild(dot);
+    }
+  }
   const box = document.getElementById("room-players");
   box.innerHTML = "";
   const all = [...r.players.map((p) => ({ ...p, spec: false })), ...r.spectators.map((p) => ({ ...p, spec: true }))];
@@ -583,7 +604,18 @@ function render() {
   // кирпичи: стекло — тень, полупрозрачный корпус, внутренний свет, блик, рамка, трещины
   for (const b of S.bricks.values()) {
     const cellw = W / 10;
-    const x = b.c * cellw + 3, y = GRID_TOP + b.r * CELL_H + 3, w = cellw - 6, h = CELL_H - 6;
+    let x = b.c * cellw + 3, y = GRID_TOP + b.r * CELL_H + 3, w = cellw - 6, h = CELL_H - 6;
+    // появление нового кирпича: мягкий pop с перелётом
+    const born = S.brickBorn.get(b.id);
+    if (born !== undefined) {
+      const age = (performance.now() - born) / 260;
+      if (age >= 1) S.brickBorn.delete(b.id);
+      else {
+        const sc = (0.25 + 0.75 * age) * (1 + 0.22 * Math.sin(age * Math.PI));
+        const cx2 = x + w / 2, cy2 = y + h / 2;
+        x = cx2 - (w / 2) * sc; y = cy2 - (h / 2) * sc; w *= sc; h *= sc;
+      }
+    }
     const col = BRICK_COLORS[b.hp] || BRICK_COLORS[1];
     const maxHp = S.brickMax.get(b.id) || b.hp;
     const cracks = b.hp < 200 ? Math.min(2, maxHp - b.hp) : 0;
@@ -629,9 +661,14 @@ function render() {
     g.rect((W - bw) / 2, 12, bw, 12).fill({ color: 0x2f2b44 });
     const frac = Math.max(0, boss.hp / boss.max_hp);
     g.rect((W - bw) / 2, 12, bw * frac, 12).fill(boss.phase ? 0xff6b6b : 0x1dd1a1);
-    // тело
+    // тело: дышит; в ярости пульсирует часто и красно, с аурой
+    const time = performance.now() / 1000;
+    const pulse = boss.phase ? 2.6 * Math.sin(time * 10) : 1.4 * Math.sin(time * 3);
+    if (boss.phase) {
+      g.circle(bx, by, 52 + 4 * Math.sin(time * 10)).fill({ color: 0xff6b6b, alpha: 0.22 });
+    }
     g.circle(bx, by, 42).fill(bc2);
-    g.circle(bx, by, 30).fill(boss.phase ? 0xff6b6b : bc1);
+    g.circle(bx, by, 30 + pulse).fill(boss.phase ? 0xff6b6b : bc1);
     // снаряды (интерполяция по индексу)
     const [prA, prB, prK] = interpPair(buf, rt, (s0) => s0.projs || []);
     for (const p of S.latest.projs || []) {

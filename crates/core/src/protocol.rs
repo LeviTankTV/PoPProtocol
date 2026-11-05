@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::MAX_PLAYERS;
 
-pub const PROTOCOL_VERSION: u16 = 2;
+pub const PROTOCOL_VERSION: u16 = 3;
 
 /// Синтетические id ботов: диапазон не пересекается с id игроков из БД.
 pub const BOT_ID_BASE: u32 = 0xF000_0000;
@@ -42,6 +42,8 @@ pub enum ClientMsg {
     AddBot { level: BotLevel },
     /// Только хост: убрать бота.
     RemoveBot { player_id: u32 },
+    /// Сменить цвет ракетки/мячей (если цвет свободен в комнате).
+    SetColor { color: u8 },
 }
 
 /* ---------- сервер -> клиент ---------- */

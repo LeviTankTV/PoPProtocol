@@ -54,6 +54,11 @@
     border:2px solid #2f2b44; border-radius:12px; background:#fff; width:180px;
   }
   .menu-row{ margin:8px 0; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  #color-palette{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 10px; }
+  .color-dot{ width:22px; height:22px; border-radius:50%; cursor:pointer;
+    border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .12s; }
+  .color-dot:hover{ transform:scale(1.18); }
+  .color-dot.chosen{ border-color:var(--ink); transform:scale(1.22); box-shadow:0 0 0 3px rgba(59,53,82,.2); }
   .room-row,.player-row{ padding:6px 10px; border:2px solid #2f2b44; border-radius:12px; background:#fff; margin:5px 0; display:flex; align-items:center; gap:8px; box-shadow:0 2px 0 rgba(47,43,68,.15); }
   .room-row{ justify-content:space-between; }
   .dot{ width:14px; height:14px; border-radius:50%; border:2px solid #2f2b44; display:inline-block; }
@@ -115,6 +120,7 @@
         <button id="btn-bot-normal" class="small">+ Обычный</button>
         <button id="btn-bot-pro" class="small">+ Профи</button>
       </div>
+      <div id="color-palette" title="цвет ракетки"></div>
       <div id="room-players"></div>
       <div id="chat"></div>
       <div class="menu-row">

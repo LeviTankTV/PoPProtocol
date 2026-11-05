@@ -434,6 +434,45 @@ impl Lobby {
         Ok(Joined { room_id, kind })
     }
 
+    /// Смена цвета игроком: цвет должен быть свободен среди участников комнаты.
+    pub async fn set_color(&self, player_id: u32, room_id: u32, color: u8) -> Result<(), LobbyError> {
+        let mut inner = self.inner.lock().await;
+        let Some(room) = inner.rooms.get_mut(&room_id) else {
+            return Err(LobbyError::Code(ErrCode::NotAllowed));
+        };
+        let taken = room
+            .players
+            .iter()
+            .any(|p| p.id != player_id && p.color == color)
+            || room.spectators.iter().any(|p| p.id != player_id && p.color == color);
+        if taken {
+            return Err(LobbyError::Code(ErrCode::NotAllowed));
+        }
+        let changed = room
+            .players
+            .iter_mut()
+            .find(|p| p.id == player_id)
+            .map(|p| {
+                p.color = color;
+                true
+            })
+            .or_else(|| {
+                room.spectators
+                    .iter_mut()
+                    .find(|p| p.id == player_id)
+                    .map(|p| {
+                        p.color = color;
+                        true
+                    })
+            });
+        if changed.is_none() {
+            return Err(LobbyError::Code(ErrCode::NotAllowed));
+        }
+        tracing::info!("комната #{room_id}: игрок {player_id} сменил цвет на {color}");
+        room.broadcast_state();
+        Ok(())
+    }
+
     pub async fn leave_room(&self, player_id: u32, room_id: u32) -> bool {
         let mut inner = self.inner.lock().await;
         // Матч узнаёт об уходе игрока (уберёт ракетку и мячи).
