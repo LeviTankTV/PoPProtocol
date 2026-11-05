@@ -1909,6 +1909,45 @@ mod tests {
         );
     }
 
+    #[test]
+    fn bench_tick_cost() {
+        // 10 игроков (2 бота + 8 человек без ввода): худший случай по числу сущностей
+        let roster: Vec<(u32, String, Option<BotLevel>)> = (0..10)
+            .map(|i| {
+                let id = if i < 2 {
+                    popproto_core::BOT_ID_BASE + i as u32
+                } else {
+                    i as u32 + 1
+                };
+                (
+                    id,
+                    format!("И{}", i),
+                    if i < 2 { Some(BotLevel::Pro) } else { None },
+                )
+            })
+            .collect();
+        let mut g = Game::new(roster, 1.0, false, GameMode::Coop);
+        g.handle_cmd(GameCmd::Action { player_id: 1 });
+        g.handle_cmd(GameCmd::Action {
+            player_id: popproto_core::BOT_ID_BASE,
+        });
+        // прогрев
+        for _ in 0..100 {
+            g.tick(1.0 / TICK_HZ as f32);
+        }
+        let t0 = std::time::Instant::now();
+        const N: u32 = 3000;
+        for _ in 0..N {
+            g.tick(1.0 / TICK_HZ as f32);
+        }
+        let per_tick = t0.elapsed() / N;
+        eprintln!("BENCH: {:?} на тик (бюджет 33.3 мс, 10 игроков)", per_tick);
+        assert!(
+            per_tick.as_secs_f64() < 0.033,
+            "тик должен укладываться в 30 Гц"
+        );
+    }
+
     /* ---------- тесты боссов ---------- */
 
     fn boss_game() -> Game {

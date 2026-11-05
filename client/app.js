@@ -80,6 +80,7 @@ const S = {
   prevSig: { bricks: 0, bullets: 0, caps: 0, bossHp: -1, lives: 0 },
   snapInt: 0, lastSnapRecv: 0,   // EMA интервала снапшотов -> адаптивная задержка
   paddleX: null,                 // предсказанная позиция СВОЕЙ ракетки (без задержки)
+  bgDirty: true, bricksDirty: true, bgBoss: false, // кэши статики
 };
 
 /* ---------- сеть ---------- */
@@ -135,6 +136,7 @@ function handle(m) {
     case "MatchStarted":
       S.snapBuf = []; S.latest = null; S.bricks.clear(); S.over = null;
       S.paddleX = null; S.trails.clear(); S.comboSeen.clear();
+      S.bgDirty = true; S.bricksDirty = true;
       showScreen("game");
       break;
     case "Snapshot": onSnapshot(m); break;
@@ -163,6 +165,7 @@ function onSnapshot(s) {
     const m = S.brickMax.get(b.id) || 0;
     if (b.hp > m) S.brickMax.set(b.id, b.hp);
   }
+  S.bricksDirty = true;
   for (const id of s.bricks_removed) {
     const b = S.bricks.get(id);
     if (b) {
@@ -392,6 +395,11 @@ async function initPixi() {
   holder.appendChild(app.canvas);
   window.__pixiApp = app; // для отладки/тестов
   window.__S = S;
+  // слои: фон-кэш -> кирпичи-кэш -> динамика -> всплывающие тексты
+  window.__bgG = new PIXI.Graphics();
+  window.__brickG = new PIXI.Graphics();
+  app.stage.addChild(window.__bgG);
+  app.stage.addChild(window.__brickG);
   g = new PIXI.Graphics();
   app.stage.addChild(g);
   app.ticker.add(() => {
@@ -409,6 +417,7 @@ async function initPixi() {
 }
 
 function fitCanvas(fieldW) {
+  S.bgDirty = true; S.bricksDirty = true;
   const holder = document.getElementById("canvas-holder");
   const maxW = Math.min(holder.clientWidth || 860, 960);
   const scale = Math.min(1, maxW / fieldW);
@@ -578,19 +587,23 @@ function bgRand(seedRef) {
   return seedRef.v / 4294967296;
 }
 const BG_PASTEL = [0xffd1dc, 0xffe9b3, 0xc9f0ff, 0xd9ffd6, 0xe8d9ff, 0xffd9ec];
-function drawBackground(W, H) {
+function drawBackgroundCache(W, H) {
+  // редкая перерисовка: градиент + сетка (цвет сетки зависит от наличия босса)
+  const bgG = window.__bgG;
+  bgG.clear();
+  const bossNow = !!(S.latest && S.latest.boss);
+  bgG.rect(0, 0, W, H).fill({ color: 0xfff4ec, alpha: 0.9 });
+  bgG.rect(0, 0, W, H * 0.55).fill({ color: 0xffe6f0, alpha: 0.55 });
+  bgG.rect(0, H * 0.45, W, H * 0.55).fill({ color: 0xe3f4ff, alpha: 0.5 });
+  const gridC = bossNow ? 0xff6b6b : 0x8e7cf3;
+  for (let x = 80; x < W; x += 80) bgG.rect(x - 1, 0, 2, H).fill({ color: gridC, alpha: 0.05 });
+  for (let y = 80; y < H; y += 80) bgG.rect(0, y - 1, W, 2).fill({ color: gridC, alpha: 0.05 });
+  S.bgBoss = bossNow;
+  S.bgDirty = false;
+}
+function drawBubbles(W, H) {
+  // динамичные пузыри — каждый кадр, но их всего 32
   const time = performance.now() / 1000;
-  // мягкий конфетный градиент тремя слоями
-  g.rect(0, 0, W, H).fill({ color: 0xfff4ec, alpha: 0.9 });
-  g.rect(0, 0, W, H * 0.55).fill({ color: 0xffe6f0, alpha: 0.55 });
-  g.rect(0, H * 0.45, W, H * 0.55).fill({ color: 0xe3f4ff, alpha: 0.5 });
-  // светящаяся сетка (пульсирует красным при боссе)
-  const boss = S.latest && S.latest.boss;
-  const gridA = boss ? 0.05 + 0.04 * Math.sin(time * 3) : 0.045;
-  const gridC = boss ? 0xff6b6b : 0x8e7cf3;
-  for (let x = 80; x < W; x += 80) g.rect(x - 1, 0, 2, H).fill({ color: gridC, alpha: gridA });
-  for (let y = 80; y < H; y += 80) g.rect(0, y - 1, W, 2).fill({ color: gridC, alpha: gridA });
-  // два слоя параллакс-пузырей, медленно всплывающих
   const seed = { v: S.bgSeed };
   for (let layer = 0; layer < 2; layer++) {
     const speed = layer === 0 ? 9 : 16;
@@ -617,9 +630,15 @@ function render() {
   const rt = performance.now() - delay;
   const buf = S.snapBuf.length ? S.snapBuf : [{ recv: 0, snap: S.latest }];
   const W = S.latest.field_w, H = S.latest.field_h;
-  drawBackground(W, H);
+  const bossNow = !!S.latest.boss;
+  if (S.bgDirty || bossNow !== S.bgBoss) drawBackgroundCache(W, H);
+  drawBubbles(W, H);
 
-  // кирпичи: стекло — тень, полупрозрачный корпус, внутренний свет, блик, рамка, трещины
+  // кирпичи — в кэше brickG (см. drawBricksCache)
+  if (S.bricksDirty || S.brickBorn.size > 0) drawBricksCache(W);
+function drawBricksCache(W) {
+  const bg = window.__brickG;
+  bg.clear();
   for (const b of S.bricks.values()) {
     const cellw = W / 10;
     let x = b.c * cellw + 3, y = GRID_TOP + b.r * CELL_H + 3, w = cellw - 6, h = CELL_H - 6;
@@ -637,25 +656,27 @@ function render() {
     const col = BRICK_COLORS[b.hp] || BRICK_COLORS[1];
     const maxHp = S.brickMax.get(b.id) || b.hp;
     const cracks = b.hp < 200 ? Math.min(2, maxHp - b.hp) : 0;
-    g.roundRect(x + 2, y + 3, w, h, 7).fill({ color: 0x3b3552, alpha: 0.16 });
-    g.roundRect(x, y, w, h, 7).fill({ color: col[0], alpha: 0.62 });
-    g.roundRect(x + 4, y + 4, w - 8, h - 8, 5).fill({ color: col[1], alpha: 0.32 });
-    g.roundRect(x + 3, y + 2.5, w - 6, 5, 2.5).fill({ color: 0xffffff, alpha: 0.8 });
-    g.circle(x + 7, y + 7, 2.5).fill({ color: 0xffffff, alpha: 0.9 });
-    g.roundRect(x, y, w, h, 7).stroke({ color: 0xffffff, width: 1.5, alpha: 0.55 });
+    bg.roundRect(x + 2, y + 3, w, h, 7).fill({ color: 0x3b3552, alpha: 0.16 });
+    bg.roundRect(x, y, w, h, 7).fill({ color: col[0], alpha: 0.62 });
+    bg.roundRect(x + 4, y + 4, w - 8, h - 8, 5).fill({ color: col[1], alpha: 0.32 });
+    bg.roundRect(x + 3, y + 2.5, w - 6, 5, 2.5).fill({ color: 0xffffff, alpha: 0.8 });
+    bg.circle(x + 7, y + 7, 2.5).fill({ color: 0xffffff, alpha: 0.9 });
+    bg.roundRect(x, y, w, h, 7).stroke({ color: 0xffffff, width: 1.5, alpha: 0.55 });
     // трещины детерминированы по id кирпича
     for (let k = 0; k < cracks; k++) {
       let cx = x + 8 + ((b.id * 7 + k * 29) % (w - 16));
       let cy = y + 4 + ((b.id * 13 + k * 7) % (h - 8));
-      g.moveTo(cx, cy);
+      bg.moveTo(cx, cy);
       for (let j = 0; j < 3; j++) {
         cx += ((b.id * 11 + k * 17 + j * 31) % 15) - 7;
         cy += ((b.id * 19 + k * 23 + j * 13) % 9) - 3;
-        g.lineTo(cx, cy);
+        bg.lineTo(cx, cy);
       }
-      g.stroke({ color: 0x3b3552, width: 1.4, alpha: 0.5 });
+      bg.stroke({ color: 0x3b3552, width: 1.4, alpha: 0.5 });
     }
   }
+  S.bricksDirty = false;
+}
 
   // Тьма: гасим поле — мячи и ракетки рисуются поверх и остаются видны
   if ((S.latest.events || []).some((ev) => ev.event === 1)) {
