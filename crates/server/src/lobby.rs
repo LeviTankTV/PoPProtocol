@@ -749,7 +749,10 @@ mod tests {
     #[tokio::test]
     async fn overflow_becomes_spectator_then_full() {
         let lobby = test_lobby();
-        let settings = RoomSettings { max_players: 2, ..RoomSettings::default() };
+        let settings = RoomSettings {
+            max_players: 2,
+            ..RoomSettings::default()
+        };
         lobby
             .create_room(
                 &rec(1, "Тима"),
@@ -978,7 +981,10 @@ mod tests {
         assert_eq!(state.players.len(), 2);
 
         // заполнение до отказа
-        let settings = RoomSettings { max_players: 2, ..RoomSettings::default() };
+        let settings = RoomSettings {
+            max_players: 2,
+            ..RoomSettings::default()
+        };
         let room2 = lobby
             .create_room(&rec(5, "Два"), "B2".into(), None, GameMode::Coop, settings)
             .await

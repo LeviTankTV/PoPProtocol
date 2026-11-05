@@ -7,9 +7,9 @@ use std::collections::{HashMap, VecDeque};
 use popproto_bot::BotBrain;
 use popproto_core::field::{Brick, Field};
 use popproto_core::{
-    encode_coord, field_width, ActiveEvent, BallSnap, BotLevel, ComboSnap, EventKind,
-    FinalScore, FloatSnap, GameMode, MatchOverReason, MatchPhase, PlayerSnap, PlayerState,
-    ScoreSnap, ServerMsg, Snapshot, AFK_TIMEOUT_SECS, BASE_SPEED, FIELD_H, TICK_HZ,
+    encode_coord, field_width, ActiveEvent, BallSnap, BotLevel, ComboSnap, EventKind, FinalScore,
+    FloatSnap, GameMode, MatchOverReason, MatchPhase, PlayerSnap, PlayerState, ScoreSnap,
+    ServerMsg, Snapshot, AFK_TIMEOUT_SECS, BASE_SPEED, FIELD_H, TICK_HZ,
 };
 use tokio::sync::mpsc;
 
