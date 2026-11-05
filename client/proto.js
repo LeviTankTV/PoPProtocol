@@ -26,7 +26,7 @@ class R {
   vec(fn) { const n = this.u64(); const out = []; for (let k = 0; k < n; k++) out.push(fn()); return out; }
 }
 
-const PROTOCOL_VERSION = 4;
+const PROTOCOL_VERSION = 5;
 
 // Явные функции кодирования: читаемость важнее краткости.
 function mHello(name, token) {
@@ -113,11 +113,11 @@ function readSnapshot(r) {
   const capsules = r.vec(() => ({ id: r.u16(), x: r.u16() / 10, y: r.u16() / 10, kind: r.u8() }));
   const bullets = r.vec(() => ({ id: r.u16(), owner_id: r.u32(), x: r.u16() / 10, y: r.u16() / 10 }));
   r.vec(() => { r.u16(); r.u16(); r.str(); r.u8(); });             // floats
-  const boss = r.opt(() => ({ kind: r.u8(), hp: r.u32(), max_hp: r.u32(), phase: r.u8(), x: r.u16() / 10, y: r.u16() / 10 }));
+  const boss = r.opt(() => ({ kind: r.u8(), hp: r.u32(), max_hp: r.u32(), phase: r.u8(), x: r.u16() / 10, y: r.u16() / 10, shields: r.vec(() => ({ hp: r.u8(), angle: r.u8() })) }));
   const events = r.vec(() => ({ event: r.u32(), remaining_secs: r.f32() }));
   const combo = r.vec(() => ({ player_id: r.u32(), combo: r.u8() }));
   const scores = r.vec(() => ({ player_id: r.u32(), score: r.u32(), lives: r.u8() }));
-  const projs = r.vec(() => ({ x: r.u16() / 10, y: r.u16() / 10 }));
+  const projs = r.vec(() => ({ id: r.u16(), x: r.u16() / 10, y: r.u16() / 10 }));
   return { t: "Snapshot", tick, field_w, field_h, phase, level, players, balls, bricks_upsert, bricks_removed, capsules, bullets, events, boss, combo, scores, projs };
 }
 

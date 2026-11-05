@@ -90,6 +90,31 @@
   #toasts div{ background:#2f2b44; color:#fff; padding:6px 14px; border-radius:12px; font-size:14px; animation:popin .25s ease; }
   @keyframes popin{ 0%{ transform:scale(1.4);} 100%{ transform:scale(1);} }
   .hint{ text-align:center; font-size:12px; opacity:.6; margin-top:8px; }
+  #over{ animation: overIn .5s cubic-bezier(.2,1.4,.4,1) both; border:4px solid #2f2b44;
+    border-radius:22px; background:rgba(255,255,255,.94); box-shadow:0 8px 0 rgba(47,43,68,.2); }
+  @keyframes overIn { 0%{ transform:scale(.6) rotate(-3deg); opacity:0; } 100%{ transform:scale(1) rotate(0); opacity:1; } }
+  .screen{ animation: screenIn .35s ease both; }
+  @keyframes screenIn { 0%{ opacity:0; transform:translateY(10px); } 100%{ opacity:1; transform:none; } }
+  #loading-screen{ position:fixed; inset:0; z-index:60; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:26px;
+    background:linear-gradient(160deg,#fff4ec 0%,#ffe6f0 45%,#e3f4ff 100%); transition:opacity .4s; }
+  #loading-screen.hidden{ opacity:0; pointer-events:none; }
+  .loading-logo{ font-size:2rem; font-weight:bold; background:linear-gradient(90deg,#ff6b6b,#feca57,#1dd1a1,#a55eea);
+    -webkit-background-clip:text; background-clip:text; color:transparent; animation:hueShift 3s linear infinite; }
+  @keyframes hueShift { 0%{ filter:hue-rotate(0); } 100%{ filter:hue-rotate(360deg); } }
+  .loading-scene{ position:relative; display:flex; align-items:flex-end; justify-content:center; gap:70px; height:70px; width:280px; }
+  .loading-paddle{ width:90px; height:14px; border-radius:8px; background:linear-gradient(135deg,#ff6b6b,#ee5253);
+    box-shadow:0 3px 0 rgba(47,43,68,.2); animation:pslide 1.8s ease-in-out infinite alternate; }
+  .loading-paddle.right{ background:linear-gradient(135deg,#48dbfb,#0abde3); animation-delay:.9s; }
+  @keyframes pslide { 0%{ transform:translateX(-26px); } 100%{ transform:translateX(26px); } }
+  .loading-ball{ width:22px; height:22px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff,#feca57 55%,#ff9ff3);
+    box-shadow:0 0 14px rgba(255,159,243,.7); position:absolute; bottom:36px; left:50%; margin-left:-11px;
+    animation:lbounce .75s cubic-bezier(.35,0,.65,1) infinite alternate; }
+  @keyframes lbounce { 0%{ transform:translateY(-26px) scale(1,1); } 100%{ transform:translateY(24px) scale(1.1,.85); } }
+  .loading-text{ font-size:1.05rem; color:#3b3552; }
+  .dots span{ animation:dotPulse 1.2s infinite; opacity:0; }
+  .dots span:nth-child(2){ animation-delay:.2s; } .dots span:nth-child(3){ animation-delay:.4s; }
+  @keyframes dotPulse { 0%,100%{ opacity:0; } 50%{ opacity:1; } }
   @media (max-width: 720px) {
     h1 { font-size: 1.6rem; }
     .menu-row { flex-wrap: wrap; }
@@ -103,6 +128,15 @@
 </style>
 </head>
 <body>
+  <div id="loading-screen">
+    <div class="loading-logo">PoP - Protocol</div>
+    <div class="loading-scene">
+      <div class="loading-paddle left"></div>
+      <div class="loading-ball"></div>
+      <div class="loading-paddle right"></div>
+    </div>
+    <div class="loading-text" id="loading-text">Подключение<span class="dots"><span>.</span><span>.</span><span>.</span></span></div>
+  </div>
   <h1>PoP - Protocol</h1>
   <div style="display:flex; gap:8px; align-items:center;">
     <div id="conn">подключение…</div>
@@ -187,6 +221,7 @@
   <script src="/pixi.min.js"></script>
   <script>window.PIXI||document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js"><\/scr'+'ipt>');</script>
   <script src="/proto.js"></script>
+  <script>window.__errs=[];window.onerror=function(m,s,l,c){window.__errs.push(m+" @"+l+":"+c);};window.onunhandledrejection=function(e){window.__errs.push("REJ: "+e.reason);};</script>
   <script src="/app.js"></script>
 </body>
 </html>

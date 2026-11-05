@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::MAX_PLAYERS;
 
-pub const PROTOCOL_VERSION: u16 = 4;
+pub const PROTOCOL_VERSION: u16 = 5;
 
 /// Синтетические id ботов: диапазон не пересекается с id игроков из БД.
 pub const BOT_ID_BASE: u32 = 0xF000_0000;
@@ -272,6 +272,7 @@ pub struct Snapshot {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct ProjSnap {
+    pub id: u16,
     pub x: u16,
     pub y: u16,
 }
@@ -375,6 +376,16 @@ pub struct BossSnap {
     pub phase: u8,
     pub x: u16,
     pub y: u16,
+    /// Живые щиты-щупальца: HP и угол (мячи отскакивают от них, не нанося урона).
+    pub shields: Vec<ShieldSnap>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct ShieldSnap {
+    /// Остаток HP щита.
+    pub hp: u8,
+    /// Текущий угол орбиты, единица = 1.40625° (360/256).
+    pub angle_deg: u8,
 }
 
 /* ---------- евенты ---------- */
@@ -527,6 +538,7 @@ mod tests {
                 color: 3,
             }],
             boss: Some(BossSnap {
+                shields: vec![ShieldSnap { hp: 4, angle_deg: 0 }],
                 kind: 2,
                 hp: 900,
                 max_hp: 1000,
@@ -547,7 +559,7 @@ mod tests {
                 score: 1230,
                 lives: 2,
             }],
-            projs: vec![ProjSnap { x: 100, y: 400 }],
+            projs: vec![ProjSnap { id: 1, x: 100, y: 400 }],
         };
         roundtrip(ServerMsg::Snapshot(Box::new(snap)));
     }

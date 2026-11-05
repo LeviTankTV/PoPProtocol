@@ -40,6 +40,19 @@ let LANG = localStorage.getItem("pop_lang") || (navigator.language || "ru").slic
 if (!I18N[LANG]) LANG = "ru";
 const t = (k) => I18N[LANG][k] ?? I18N.ru[k] ?? k;
 
+/* ---------- экран загрузки / переподключения ---------- */
+function showLoading(reconnecting) {
+  const el = document.getElementById("loading-screen");
+  if (!el) return;
+  const txt = document.getElementById("loading-text");
+  if (txt) txt.innerHTML = (reconnecting ? t("reconnecting") : t("connecting")) + '<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+  el.classList.remove("hidden");
+}
+function hideLoading() {
+  const el = document.getElementById("loading-screen");
+  if (el) el.classList.add("hidden");
+}
+
 function applyLang() {
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
@@ -80,6 +93,8 @@ const S = {
   prevSig: { bricks: 0, bullets: 0, caps: 0, bossHp: -1, lives: 0 },
   snapInt: 0, lastSnapRecv: 0,   // EMA интервала снапшотов -> адаптивная задержка
   paddleX: null,                 // предсказанная позиция СВОЕЙ ракетки (без задержки)
+  overUntil: 0, overPending: false, // анимационная пауза после матча
+  prevShieldHps: [],                // HP щитов с прошлого снапшота (вспышки урона)
   bgDirty: true, bricksDirty: true, bgBoss: false, // кэши статики
 };
 
@@ -97,6 +112,7 @@ function connect() {
   };
   ws.onclose = () => {
     S.connected = false;
+    showLoading(true); // тематический экран переподключения
     setStatus(t("offline"), "err");
     setTimeout(connect, 1500);
   };
@@ -113,6 +129,7 @@ const send = (buf) => { if (S.connected) S.ws.send(buf); };
 function handle(m) {
   switch (m.t) {
     case "Welcome":
+      hideLoading();
       S.myId = m.player_id; S.myName = m.name; S.token = m.token;
       localStorage.setItem("pop_token", m.token);
       localStorage.setItem("pop_name", m.name);
@@ -130,12 +147,24 @@ function handle(m) {
       S.room = m;
       S.isHost = m.host_id === S.myId;
       localStorage.setItem("pop_room_code", m.code);
-      if (m.phase === 0) showScreen("room"); // Lobby
-      else showScreen("game"); // реконнект/вход в идущий матч — сразу поле
+      if (m.phase === 0) {
+        // после матча показываем итоги с анимацией, потом мягкий переход в лобби
+        const left = (S.overUntil || 0) - performance.now();
+        if (left > 60 && !S.overPending) {
+          S.overPending = true;
+          setTimeout(() => { S.overPending = false; S.overUntil = 0; showScreen("room"); }, left);
+        } else if (!S.overPending) {
+          S.overUntil = 0;
+          showScreen("room");
+        }
+      } else {
+        S.overUntil = 0;
+        showScreen("game"); // реконнект/вход в идущий матч — сразу поле
+      }
       break;
     case "MatchStarted":
       S.snapBuf = []; S.latest = null; S.bricks.clear(); S.over = null;
-      S.paddleX = null; S.trails.clear(); S.comboSeen.clear();
+      S.paddleX = null; S.trails.clear(); S.comboSeen.clear(); S.overUntil = 0; S.overPending = false;
       S.bgDirty = true; S.bricksDirty = true;
       showScreen("game");
       break;
@@ -150,6 +179,7 @@ function handle(m) {
     case "PlayerLeft":
       if (m.player_id === S.myId) {
         S.room = null;
+        S.overUntil = 0; S.overPending = false;
         localStorage.removeItem("pop_room_code");
         showScreen("menu");
       }
@@ -186,6 +216,15 @@ function onSnapshot(s) {
   if (sig.lives > 0 && livesNow < sig.lives) sfxLose();
   sig.bullets = s.bullets.length; sig.caps = s.capsules.length;
   sig.bossHp = s.boss ? s.boss.hp : -1; sig.lives = livesNow;
+  // стан снарядом босса: всплывающая заморозка над ракеткой
+  for (const pl of s.players) {
+    const key = "stun" + pl.id;
+    if (pl.state === 2 && !S[key]) {
+      S[key] = true;
+      if (pl.id === S.myId) toast("❄ " + (LANG === "en" ? "FROZEN — paddle stunned!" : "ЗАМОРОЗКА — ракетка скована!"));
+      else floatText(pl.x, s.field_h - 80, "❄", 0x81d4fa);
+    } else if (pl.state !== 2) S[key] = false;
+  }
   // комбо-фейерверк: серия игрока достигла кратной 5 отметки
   for (const cm of s.combo || []) {
     const was = S.comboSeen.get(cm.player_id) || 0;
@@ -369,6 +408,14 @@ function updateHud(s) {
 function showOver(m) {
   const box = document.getElementById("over");
   const reason = m.reason === 1 ? t("winTitle") : m.reason === 2 ? t("exhausted") : t("loseTitle");
+  // удержание на экране итогов: комната уже в лобби, но мы не прыгаем мгновенно
+  S.overUntil = performance.now() + 3600;
+  // тематическое конфетти по цветам участников
+  const confColors = (m.scores || []).map((s0) => COLORS[((playerInfo(s0.player_id) || {}).color || 0) % COLORS.length]);
+  for (let i = 0; i < 5; i++) {
+    const cx = (S.latest ? S.latest.field_w : 800) * (0.2 + 0.15 * i);
+    setTimeout(() => spawnFirework(cx, (S.latest ? S.latest.field_h : 600) * (0.25 + 0.1 * ((i % 3))), confColors[i % Math.max(1, confColors.length)] || 0xff9ff3, null), i * 260);
+  }
   // ачивки: MVP, лучшая серия, клейщик, охотник на боссов
   const best = (key) => Math.max(0, ...m.scores.map((s) => s[key] || 0));
   const maxCombo = best("max_combo"), maxBricks = best("bricks"), maxBoss = best("boss_hits");
@@ -422,7 +469,10 @@ function fitCanvas(fieldW) {
   const maxW = Math.min(holder.clientWidth || 860, 960);
   const scale = Math.min(1, maxW / fieldW);
   app.renderer.resize(fieldW, S.fieldH || 600);
-  app.canvas.style.width = (fieldW * scale) + "px";
+  // КЛЮЧЕВОЕ: высота обязана масштабироваться вместе с шириной,
+  // иначе широкий мир (10 игроков) сплющивается по горизонтали
+  app.canvas.style.width = Math.round(fieldW * scale) + "px";
+  app.canvas.style.height = Math.round((S.fieldH || 600) * scale) + "px";
 }
 
 function lerp(a, b, k) { return a + (b - a) * k; }
@@ -467,6 +517,7 @@ const sfxLaser = () => tone(980, 0.09, "sawtooth", 0.022, 320);
 const sfxBossHit = () => { tone(110, 0.16, "sine", 0.09, 55); noiseBurst(0.09, 0.045); };
 const sfxLose = () => tone(330, 0.4, "sawtooth", 0.05, 90);
 const sfxFirework = () => { noiseBurst(0.12, 0.04); tone(660, 0.2, "sine", 0.035, 1320); };
+const sfxShieldHit = () => { tone(300, 0.1, "square", 0.04, 150); noiseBurst(0.05, 0.03); };
 
 /* ---------- частицы (локальный сок, автоотключение при низком FPS) ---------- */
 const PARTICLE_CAP = 150;
@@ -546,6 +597,37 @@ function interpPair(buf, renderTime, get) {
   const k = Math.min(1, Math.max(0, (renderTime - a.recv) / Math.max(1, b.recv - a.recv)));
   return [get(a.snap), get(b.snap), k];
 }
+// интерполяция одиночной сущности (босс): Эрмит по снапшотам вокруг renderTime
+function entityAtObj(buf, renderTime, get) {
+  if (buf.length < 2) { const s0 = buf[0]; return s0 ? get(s0.snap) : null; }
+  let ia = 0;
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i].recv <= renderTime) ia = i; else break;
+  }
+  const a = buf[ia], b = buf[Math.min(buf.length - 1, ia + 1)];
+  const ea = get(a.snap), eb = get(b.snap);
+  if (!ea) return eb;
+  if (!eb || ea === eb) return ea;
+  const span = Math.max(1, b.recv - a.recv);
+  const t = Math.min(1, Math.max(0, (renderTime - a.recv) / span));
+  const prevBuf = ia > 0 ? buf[ia - 1] : null;
+  const nextBuf = ia + 2 < buf.length ? buf[ia + 2] : null;
+  const herm = (xa, xb, va, vb) => {
+    const t2 = t * t, t3 = t2 * t;
+    const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t;
+    const h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+    let v = h00 * xa + h10 * span * va + h01 * xb + h11 * span * vb;
+    const lin = xa + (xb - xa) * t;
+    if (Math.abs(v - lin) > 9) v = lin;
+    return v;
+  };
+  const dxa = prevBuf ? (eb.x - get(prevBuf.snap).x) / Math.max(1, b.recv - prevBuf.recv) : (eb.x - ea.x) / span;
+  const dxb = nextBuf ? (get(nextBuf.snap).x - ea.x) / Math.max(1, nextBuf.recv - a.recv) : (eb.x - ea.x) / span;
+  const dya = prevBuf ? (eb.y - get(prevBuf.snap).y) / Math.max(1, b.recv - prevBuf.recv) : (eb.y - ea.y) / span;
+  const dyb = nextBuf ? (get(nextBuf.snap).y - ea.y) / Math.max(1, nextBuf.recv - a.recv) : (eb.y - ea.y) / span;
+  return { ...eb, x: herm(ea.x, eb.x, dxa, dxb), y: herm(ea.y, eb.y, dya, dyb) };
+}
+
 function entityAt(buf, renderTime, id, get) {
   // Кубический Эрмит по двум снапшотам вокруг renderTime; наклоны — конечные
   // разности по соседям: траектория C1-гладкая, без изломов на стыках снапшотов.
@@ -686,50 +768,120 @@ function render() {
 
   const boss = S.latest.boss;
   if (boss) {
-    const [bossA, bossB, bossK] = interpPair(buf, rt, (s0) => s0.boss ? [s0.boss] : []);
-    const bx = bossA && bossB && bossB === S.latest.boss ? lerp(bossA[0].x, boss.x, bossK) : boss.x;
-    const by = bossA && bossB && bossB === S.latest.boss ? lerp(bossA[0].y, boss.y, bossK) : boss.y;
+    const be = entityAtObj(buf, rt, (s0) => s0.boss);
+    const bx = be ? be.x : boss.x, by = be ? be.y : boss.y;
     const KIND_COLORS = [[0x8e7cf3, 0x5a3fd6], [0x7ed6f5, 0x2b7bb5], [0xffb03a, 0xf0640f]];
     const [bc1, bc2] = KIND_COLORS[boss.kind] || KIND_COLORS[0];
-    const bw = W * 0.6;
-    g.rect((W - bw) / 2, 12, bw, 12).fill({ color: 0x2f2b44 });
-    const frac = Math.max(0, boss.hp / boss.max_hp);
-    g.rect((W - bw) / 2, 12, bw * frac, 12).fill(boss.phase ? 0xff6b6b : 0x1dd1a1);
     const time = performance.now() / 1000;
+    // ---- тематический босс-бар: крупный, скруглённый, с именем-волной ----
+    const bw = W * 0.72, bh = 20, bx0 = (W - bw) / 2, by0 = 16;
+    const frac = Math.max(0, boss.hp / boss.max_hp);
+    // подложка + рамка
+    g.roundRect(bx0 - 3, by0 - 3, bw + 6, bh + 6, 13).fill({ color: 0x2f2b44, alpha: 0.55 });
+    g.roundRect(bx0, by0, bw, bh, 10).fill({ color: 0x241f38, alpha: 0.95 });
+    // полоса HP: цвет плавно от зелёного к красному по остатку
+    const hf = Math.max(0, Math.min(1, frac));
+    const hpColor = hf > 0.5 ? 0x1dd1a1 : hf > 0.25 ? 0xfeca57 : 0xff6b6b;
+    if (frac > 0.01) {
+      g.roundRect(bx0 + 3, by0 + 3, Math.max(6, (bw - 6) * frac), bh - 6, 7).fill(hpColor);
+      // бегущий блик по полосе
+      const sheenX = bx0 + 3 + ((time * 140) % Math.max(1, (bw - 6) * frac));
+      g.roundRect(sheenX - 14, by0 + 4, 12, bh - 8, 5).fill({ color: 0xffffff, alpha: 0.22 });
+    }
+    g.roundRect(bx0, by0, bw, bh, 10).stroke({ color: 0xffffff, width: 2, alpha: 0.85 });
+    // имя босса волной (по символам, спавн при появлении босса)
+    const KIND_NAMES_RU = ["КРАКЕН", "ЛЕДЯНОЙ ГОЛЕТ", "МЕГА-КУБИК"];
+    const KIND_NAMES_EN = ["KRAKEN", "ICE GOLEM", "MEGA CUBE"];
+    const KIND_NAME_COLORS = [0xb39ddb, 0x81d4fa, 0xffcc80];
+    const nameText = (LANG === "en" ? KIND_NAMES_EN : KIND_NAMES_RU)[boss.kind] || "BOSS";
+    if (!window.__bossName || window.__bossName.kind !== boss.kind || window.__bossName.text !== nameText) {
+      if (window.__bossName) window.__bossName.chars.forEach((c) => c.destroy());
+      const chars = nameText.split("").map((ch) => {
+        const t2 = new PIXI.Text({
+          text: ch === " " ? " " : ch,
+          style: { fontFamily: "Comic Sans MS, sans-serif", fontSize: 20, fontWeight: "bold",
+            fill: KIND_NAME_COLORS[boss.kind] || 0xffffff, stroke: { color: 0x2f2b44, width: 4 } },
+        });
+        t2.anchor.set(0.5);
+        app.stage.addChild(t2);
+        return t2;
+      });
+      window.__bossName = { kind: boss.kind, text: nameText, chars };
+    }
+    const bn = window.__bossName.chars;
+    const spacing = 15;
+    for (let i = 0; i < bn.length; i++) {
+      bn[i].x = W / 2 + (i - (bn.length - 1) / 2) * spacing;
+      bn[i].y = by0 + bh + 18 + Math.sin(time * 3 - i * 0.55) * 3.5;
+      bn[i].alpha = 0.85 + 0.15 * Math.sin(time * 3 - i * 0.55);
+    }
+    // ---- щиты: орбиты-щупальца с серверными углами и видимым HP ----
+    const shList = boss.shields || [];
+    if (shList.length > 0) {
+      g.circle(bx, by, 60).stroke({ color: bc1, width: 1.5, alpha: 0.22 });
+      const prevHps = S.prevShieldHps || [];
+      shList.forEach((sh, i) => {
+        const ang = (sh.angle * 1.40625 * Math.PI) / 180;
+        const ox = bx + Math.cos(ang) * 60, oy = by + Math.sin(ang) * 60;
+        const hpFrac = Math.max(0, Math.min(1, sh.hp / 4));
+        // орб тускнеет и мельчает по мере урона
+        const orbR = 9 + 5 * hpFrac;
+        g.circle(ox, oy, orbR).fill({ color: bc1, alpha: 0.45 + 0.4 * hpFrac });
+        g.circle(ox, oy, orbR).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
+        g.circle(ox - 3, oy - 3, 2.5).fill({ color: 0xffffff, alpha: 0.8 });
+        // трещины: штрихи по числу потерянных HP
+        const dmg = 4 - sh.hp;
+        for (let k = 0; k < dmg; k++) {
+          const ca = ang + k * 1.1;
+          g.moveTo(ox + Math.cos(ca) * orbR * 0.3, oy + Math.sin(ca) * orbR * 0.3);
+          g.lineTo(ox + Math.cos(ca + 0.5) * orbR, oy + Math.sin(ca + 0.5) * orbR);
+          g.stroke({ color: 0x2f2b44, width: 1.6, alpha: 0.7 });
+        }
+        // вспышка при новом уроне по этому щиту
+        if (prevHps[i] !== undefined && sh.hp < prevHps[i]) {
+          spawnRing(ox, oy, 0xffffff, 26);
+          sfxShieldHit();
+        }
+      });
+      S.prevShieldHps = shList.map((sh) => sh.hp);
+    } else {
+      S.prevShieldHps = [];
+    }
+    // ---- тело ----
     const pulse = boss.phase ? 2.6 * Math.sin(time * 10) : 1.4 * Math.sin(time * 3);
     if (boss.phase) g.circle(bx, by, 52 + 4 * Math.sin(time * 10)).fill({ color: 0xff6b6b, alpha: 0.22 });
     g.circle(bx, by, 42).fill(bc2);
     g.circle(bx, by, 30 + pulse).fill(boss.phase ? 0xff6b6b : bc1);
-    const [prA, prB, prK] = interpPair(buf, rt, (s0) => s0.projs || []);
+    // ---- снаряды: интерполяция по id ----
     for (const p of S.latest.projs || []) {
-      const pp = prA && prB && prA.length === prB.length && prB === S.latest.projs ? prA[S.latest.projs.indexOf(p)] : null;
-      const px = pp ? lerp(pp.x, p.x, prK) : p.x;
-      const py = pp ? lerp(pp.y, p.y, prK) : p.y;
-      g.circle(px, py, 6).fill(0xe0181d);
-      g.circle(px, py, 3).fill(0xffffff);
+      const e = entityAt(buf, rt, p.id, (s) => s.projs.find((q) => q.id === p.id));
+      if (!e) continue;
+      g.circle(e.x, e.y, 6).fill(0xe0181d);
+      g.circle(e.x, e.y, 3).fill(0xffffff);
     }
+  } else if (window.__bossName) {
+    window.__bossName.chars.forEach((c) => c.destroy());
+    window.__bossName = null;
   }
 
   const CAPSULE_COLORS = [0xe84393, 0x10ac84, 0xee7724, 0x4a69bd, 0xe0181d];
-  const [capsA, capsB, capK] = interpPair(buf, rt, (s0) => s0.capsules || []);
   for (const cp of S.latest.capsules || []) {
-    const pp = capsA && capsB && capsA.length === capsB.length && capsB === S.latest.capsules ? capsA[S.latest.capsules.indexOf(cp)] : null;
-    const x = pp ? lerp(pp.x, cp.x, capK) : cp.x;
-    const y = pp ? lerp(pp.y, cp.y, capK) : cp.y;
-    g.roundRect(x - 13, y - 11, 26, 22, 8).fill(CAPSULE_COLORS[cp.kind] || 0xfeca57);
-    g.roundRect(x - 13, y - 11, 26, 22, 8).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
+    const e = entityAt(buf, rt, cp.id, (s) => s.capsules.find((q) => q.id === cp.id));
+    if (!e) continue;
+    g.roundRect(e.x - 13, e.y - 11, 26, 22, 8).fill(CAPSULE_COLORS[cp.kind] || 0xfeca57);
+    g.roundRect(e.x - 13, e.y - 11, 26, 22, 8).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
   }
-  const [bulA, bulB, bulK] = interpPair(buf, rt, (s0) => s0.bullets || []);
   for (const u of S.latest.bullets || []) {
-    const pp = bulA && bulB && bulA.length === bulB.length && bulB === S.latest.bullets ? bulA[S.latest.bullets.indexOf(u)] : null;
-    const y = pp ? lerp(pp.y, u.y, bulK) : u.y;
-    g.roundRect(u.x - 2.5, y - 12, 5, 14, 2.5).fill(0xee7724);
+    const e = entityAt(buf, rt, u.id, (s) => s.bullets.find((q) => q.id === u.id));
+    if (!e) continue;
+    g.roundRect(e.x - 2.5, e.y - 12, 5, 14, 2.5).fill(0xee7724);
   }
 
   const nowMs = performance.now();
   const dtS = Math.min(0.05, (nowMs - (S.lastFrame || nowMs)) / 1000);
   S.lastFrame = nowMs;
   for (const p of S.latest.players) {
+    if (p.state === 1) continue; // Spectator: умер — ракетка покидает поле
     let e = entityAt(buf, rt, p.id, (s) => s.players.find((q) => q.id === p.id));
     if (!e) continue;
     if (p.id === S.myId && S.paddleX !== null && p.state !== 2) {
@@ -749,13 +901,17 @@ function render() {
     const e = entityAt(buf, rt, b.id, (s) => s.balls.find((q) => q.id === b.id));
     if (!e) { S.trails.delete(b.id); continue; }
     const color = COLORS[((playerInfo(b.owner_id) || {}).color ?? 5) % COLORS.length];
+    // мой прилипший мяч клеится к предсказанной ракетке — ноль отставания
+    if (b.owner_id === S.myId && e.y > H - 80 && S.paddleX !== null) e.x = S.paddleX;
     let tr = S.trails.get(b.id);
     if (!tr) { tr = []; S.trails.set(b.id, tr); }
     tr.push({ x: e.x, y: e.y });
-    if (tr.length > 12) tr.shift();
-    for (let i = 0; i < tr.length - 1; i++) {
-      const f = (i + 1) / tr.length;
-      g.circle(tr[i].x, tr[i].y, BALL_R * (0.3 + 0.6 * f)).fill({ color, alpha: 0.3 * f });
+    if (tr.length > 8) tr.shift();
+    // хвост — непрерывная линия (без «пружинок» из кружков)
+    if (tr.length > 1) {
+      g.moveTo(tr[0].x, tr[0].y);
+      for (let i = 1; i < tr.length - 1; i++) g.lineTo(tr[i].x, tr[i].y);
+      g.stroke({ color, width: BALL_R * 1.1, alpha: 0.25, cap: "round", join: "round" });
     }
     g.circle(e.x, e.y, BALL_R * 1.9).fill({ color, alpha: 0.16 });
     g.circle(e.x, e.y, BALL_R * 1.35).fill({ color, alpha: 0.22 });
@@ -868,6 +1024,7 @@ function toggleMusic() {
 /* ---------- запуск ---------- */
 window.addEventListener("DOMContentLoaded", async () => {
   applyLang();
+  showLoading(false);
   await initPixi();
   bindInput();
   showScreen("menu");

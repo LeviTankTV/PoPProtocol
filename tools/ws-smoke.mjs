@@ -11,7 +11,7 @@ function str(s) { const u = Buffer.from(s, "utf8"); return Buffer.concat([u64(u.
 function opt(p) { return p === null ? Buffer.from([0]) : Buffer.concat([Buffer.from([1]), p]); }
 
 const enc = {
-  hello: (name, token) => Buffer.concat([u32(0), u16(4), str(name), opt(token ? str(token) : null)]),
+  hello: (name, token) => Buffer.concat([u32(0), u16(5), str(name), opt(token ? str(token) : null)]),
   addBot: (level) => Buffer.concat([u32(13), u32(level)]),
   removeBot: (id) => Buffer.concat([u32(14), u32(id)]),
   createRoom: (name, pass) => Buffer.concat([u32(2), str(name), opt(pass ? str(pass) : null), u32(0), Buffer.from([10, 1, 1]), f32(1.0)]),
@@ -84,7 +84,7 @@ function decode(buf) {
       const nC = r.u64(); for (let k = 0; k < nC; k++) { r.u16(); r.u16(); r.u16(); r.u8(); }
       const nBl = r.u64(); for (let k = 0; k < nBl; k++) { r.u16(); r.u32(); r.u16(); r.u16(); }
       const nF = r.u64(); for (let k = 0; k < nF; k++) { r.u16(); r.u16(); r.str(); r.u8(); }
-      if (r.u8() === 1) { r.u8(); r.u32(); r.u32(); r.u8(); r.u16(); r.u16(); }
+      if (r.u8() === 1) { r.u8(); r.u32(); r.u32(); r.u8(); r.u16(); r.u16(); const nSh = r.u64(); for (let sI = 0; sI < nSh; sI++) { r.u8(); r.u8(); } }
       const nE = r.u64(); for (let k = 0; k < nE; k++) { r.u32(); r.f32(); }
       const nCm = r.u64(); for (let k = 0; k < nCm; k++) { r.u32(); r.u8(); }
       return { t: "Snapshot", tick, phase, level, players, balls, bricks: nU };

@@ -59,7 +59,7 @@ let myId = 0, code = "", over = null, launched = false, lastPaddle = -1;
 const t0 = Date.now();
 const watchdog = setTimeout(() => { console.log("XP-E2E TIMEOUT"); process.exit(1); }, 240000);
 
-ws.onopen = () => ws.send(Buffer.concat([u32(0), u16(4), str(NAME), opt(null)]));
+ws.onopen = () => ws.send(Buffer.concat([u32(0), u16(5), str(NAME), opt(null)]));
 ws.onmessage = async (ev) => {
   const d = ev.data;
   const buf = Buffer.isBuffer(d) ? d : (d instanceof Blob ? Buffer.from(await d.arrayBuffer()) : Buffer.from(d.buffer ? d.buffer : d));

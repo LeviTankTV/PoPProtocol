@@ -726,8 +726,11 @@ impl Game {
                 vx: view.vx,
                 vy: view.vy,
             };
-            // bias: куда выгоднее отвести мяч (-1 — кирпичи слева от точки падения)
-            let brick_bias = {
+            // bias: куда выгоднее отвести мяч. На босс-арене цель — сам босс,
+            // иначе — центроид кирпичей (-1 — цель слева от точки падения).
+            let brick_bias = if let Some(bs) = &self.boss {
+                ((bs.x - view.x) / 200.0).clamp(-1.0, 1.0)
+            } else {
                 let cellw = self.field.w / 10.0;
                 let mut wsum = 0.0;
                 let mut cx = 0.0;
@@ -775,23 +778,25 @@ impl Game {
                 if can_launch {
                     // профи запускает мяч в сторону, где больше кирпичей; остальные — случайно
                     let angle = if level == BotLevel::Pro {
-                        let cellw = self.field.w / 10.0;
-                        let mut wsum = 0.0;
-                        let mut cx = 0.0;
-                        for br in &self.field.bricks {
-                            if br.stone {
-                                continue;
-                            }
-                            let bw = br.hp as f32;
-                            wsum += bw;
-                            cx += (br.c as f32 + 0.5) * cellw * bw;
-                        }
-                        let px = self.field.paddles[slot].x;
-                        let aim = if wsum > 0.0 {
-                            (cx / wsum - px) / 300.0
+                        // на босс-арене запуск в сторону босса, иначе — в кирпичи
+                        let (target_x, aim_div) = if let Some(bs) = &self.boss {
+                            (bs.x, 150.0)
                         } else {
-                            0.0
+                            let cellw = self.field.w / 10.0;
+                            let mut wsum = 0.0;
+                            let mut cx = 0.0;
+                            for br in &self.field.bricks {
+                                if br.stone {
+                                    continue;
+                                }
+                                let bw = br.hp as f32;
+                                wsum += bw;
+                                cx += (br.c as f32 + 0.5) * cellw * bw;
+                            }
+                            (if wsum > 0.0 { cx / wsum } else { self.field.w / 2.0 }, 300.0)
                         };
+                        let px = self.field.paddles[slot].x;
+                        let aim = (target_x - px) / aim_div;
                         -std::f32::consts::FRAC_PI_2
                             + aim.clamp(-1.0, 1.0) * 0.45
                             + (self.next_rand() * 0.1 - 0.05)
@@ -1391,6 +1396,7 @@ impl Game {
                     b.projs
                         .iter()
                         .map(|p| popproto_core::ProjSnap {
+                            id: p.id,
                             x: encode_coord(p.x),
                             y: encode_coord(p.y),
                         })

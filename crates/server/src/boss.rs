@@ -185,6 +185,14 @@ impl Boss {
             phase: if self.enraged { 1 } else { 0 },
             x: popproto_core::encode_coord(self.x),
             y: popproto_core::encode_coord(self.y),
+            shields: self
+                .shields
+                .iter()
+                .map(|sh| popproto_core::ShieldSnap {
+                    hp: sh.hp,
+                    angle_deg: (sh.angle.to_degrees().rem_euclid(360.0) / 1.40625) as u8,
+                })
+                .collect(),
         }
     }
 
