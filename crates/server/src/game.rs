@@ -4,16 +4,16 @@
 
 use std::collections::{HashMap, VecDeque};
 
+use popproto_bot::BotBrain;
 use popproto_core::field::{Brick, Field};
 use popproto_core::{
-    encode_coord, field_width, ActiveEvent, BallSnap, BossSnap, ComboSnap, FinalScore, FloatSnap,
-    MatchOverReason, MatchPhase, PlayerSnap, PlayerState, ScoreSnap, ServerMsg, Snapshot,
-    BotLevel, EventKind, GameMode, BASE_SPEED, FIELD_H, TICK_HZ, AFK_TIMEOUT_SECS,
+    encode_coord, field_width, ActiveEvent, BallSnap, BotLevel, ComboSnap, EventKind,
+    FinalScore, FloatSnap, GameMode, MatchOverReason, MatchPhase, PlayerSnap, PlayerState,
+    ScoreSnap, ServerMsg, Snapshot, AFK_TIMEOUT_SECS, BASE_SPEED, FIELD_H, TICK_HZ,
 };
-use popproto_bot::BotBrain;
 use tokio::sync::mpsc;
 
-use crate::boss::{Boss, BossKind, STUN_SECS};
+use crate::boss::{Boss, STUN_SECS};
 use crate::lobby::Lobby;
 
 pub const COMBO_WINDOW: f32 = 1.4;
@@ -53,6 +53,7 @@ pub const GOLD_MULT: u32 = 3;
 /// Период падения метеоритов/камней внутри евента.
 pub const SPAWN_PERIOD: f32 = 1.0;
 /// Этаж щита земли над полом.
+#[allow(dead_code)] // зарезервировано: стационарный щит
 pub const SHIELD_Y: f32 = 20.0;
 
 #[derive(Debug, Clone, Copy)]
@@ -74,14 +75,28 @@ pub struct Capsule {
 /// Команды матчу от WS-слоя.
 #[derive(Debug, Clone, Copy)]
 pub enum GameCmd {
-    PaddleX { player_id: u32, x: f32 },
-    Action { player_id: u32 },
+    PaddleX {
+        player_id: u32,
+        x: f32,
+    },
+    Action {
+        player_id: u32,
+    },
     /// Игрок покинул комнату посреди матча.
-    PlayerLeft { player_id: u32 },
+    PlayerLeft {
+        player_id: u32,
+    },
     /// Обрыв соединения: ракетку подхватывает бот на окно реконнекта.
-    PlayerDisconnected { player_id: u32 },
+    /// Зарезервировано: события приходят через PlayerReconnected/PlayerLeft.
+    #[allow(dead_code)]
+    PlayerDisconnected {
+        player_id: u32,
+    },
     /// Игрок вернулся по токену.
-    PlayerReconnected { player_id: u32 },
+    #[allow(dead_code)]
+    PlayerReconnected {
+        player_id: u32,
+    },
 }
 
 struct MatchPlayer {
@@ -153,7 +168,12 @@ pub struct Game {
 
 impl Game {
     /// Новая игра: N игроков на поле шириной от N, свой мяч у каждого.
-    pub fn new(players: Vec<(u32, String, Option<BotLevel>)>, speed_factor: f32, events_enabled: bool, mode: GameMode) -> Self {
+    pub fn new(
+        players: Vec<(u32, String, Option<BotLevel>)>,
+        speed_factor: f32,
+        events_enabled: bool,
+        mode: GameMode,
+    ) -> Self {
         let n = players.len().max(1);
         let w = field_width(n);
         let start = std::env::var("POPGO_START_LEVEL")
@@ -161,7 +181,15 @@ impl Game {
             .and_then(|v| v.parse().ok())
             .filter(|v| *v >= 1)
             .unwrap_or(1);
-        let mut field = Field::new(w, FIELD_H, if mode == GameMode::BossRush { 0 } else { (start - 1) as usize });
+        let mut field = Field::new(
+            w,
+            FIELD_H,
+            if mode == GameMode::BossRush {
+                0
+            } else {
+                (start - 1) as usize
+            },
+        );
         field.speed = BASE_SPEED * speed_factor.clamp(0.5, 2.0);
         let mp: Vec<MatchPlayer> = players
             .iter()
@@ -248,10 +276,14 @@ impl Game {
         if g.level > 1 {
             g.field.load_level((g.level - 1) as usize);
             g.sent_bricks.clear();
-            if g.level % 3 == 0 && g.level < popproto_core::field::LEVELS.len() as u32 {
+            if g.level.is_multiple_of(3) && g.level < popproto_core::field::LEVELS.len() as u32 {
                 g.field.bricks.clear();
                 g.field.grid_clear();
-                let living = g.players.iter().filter(|p| p.connected && !p.gone && p.lives > 0).count();
+                let living = g
+                    .players
+                    .iter()
+                    .filter(|p| p.connected && !p.gone && p.lives > 0)
+                    .count();
                 let kind_index = g.boss_kind_counter % crate::boss::BOSS_KINDS;
                 g.boss_kind_counter += 1;
                 g.boss = Some(crate::boss::Boss::new(kind_index, living, g.field.w));
@@ -266,7 +298,11 @@ impl Game {
         if g.mode == GameMode::BossRush && g.boss.is_none() {
             g.field.bricks.clear();
             g.field.grid_clear();
-            let living = g.players.iter().filter(|p| p.connected && !p.gone && p.lives > 0).count();
+            let living = g
+                .players
+                .iter()
+                .filter(|p| p.connected && !p.gone && p.lives > 0)
+                .count();
             let kind_index = g.boss_kind_counter % crate::boss::BOSS_KINDS;
             g.boss_kind_counter += 1;
             g.boss = Some(crate::boss::Boss::new(kind_index, living, g.field.w));
@@ -283,7 +319,10 @@ impl Game {
     }
 
     fn slot_of(&self, player_id: u32) -> Option<usize> {
-        self.players.iter().find(|p| p.player_id == player_id).map(|p| p.slot)
+        self.players
+            .iter()
+            .find(|p| p.player_id == player_id)
+            .map(|p| p.slot)
     }
 
     /// Мячи «готовых» игроков прилипают к их ракеткам (в любой фазе:
@@ -301,7 +340,9 @@ impl Game {
             .map(|b| (b.id, b.owner))
             .collect();
         for (ball_id, owner) in waiting {
-            let Some(slot) = self.slot_of(owner) else { continue };
+            let Some(slot) = self.slot_of(owner) else {
+                continue;
+            };
             let px = self.field.paddles[slot].x;
             let py = self.field.h - 42.0 - READY_BALL_OFFSET;
             if let Some(b) = self.field.balls.iter_mut().find(|b| b.id == ball_id) {
@@ -322,12 +363,21 @@ impl Game {
     /// Случайный евент, которого ещё нет среди активных.
     fn pick_event(&mut self) -> Option<EventKind> {
         const ALL: [EventKind; 9] = [
-            EventKind::MeteorShower, EventKind::Darkness, EventKind::Inversion,
-            EventKind::GoldRush, EventKind::SpeedFrenzy, EventKind::Rockfall,
-            EventKind::CapsuleFountain, EventKind::DoubleBall, EventKind::GroundShield,
+            EventKind::MeteorShower,
+            EventKind::Darkness,
+            EventKind::Inversion,
+            EventKind::GoldRush,
+            EventKind::SpeedFrenzy,
+            EventKind::Rockfall,
+            EventKind::CapsuleFountain,
+            EventKind::DoubleBall,
+            EventKind::GroundShield,
         ];
-        let candidates: Vec<EventKind> =
-            ALL.iter().copied().filter(|k| !self.is_active(*k)).collect();
+        let candidates: Vec<EventKind> = ALL
+            .iter()
+            .copied()
+            .filter(|k| !self.is_active(*k))
+            .collect();
         if candidates.is_empty() {
             return None;
         }
@@ -341,15 +391,35 @@ impl Game {
         match kind {
             EventKind::MeteorShower | EventKind::Rockfall => {
                 self.spawn_timer = 0.0;
-                self.events.push(ActiveEventState { kind, remaining: if kind == EventKind::MeteorShower { METEOR_SECS } else { ROCK_SECS } });
+                self.events.push(ActiveEventState {
+                    kind,
+                    remaining: if kind == EventKind::MeteorShower {
+                        METEOR_SECS
+                    } else {
+                        ROCK_SECS
+                    },
+                });
             }
-            EventKind::Darkness => self.events.push(ActiveEventState { kind, remaining: DARKNESS_SECS }),
-            EventKind::Inversion => self.events.push(ActiveEventState { kind, remaining: INVERSION_SECS }),
-            EventKind::GoldRush => self.events.push(ActiveEventState { kind, remaining: GOLD_SECS }),
-            EventKind::SpeedFrenzy => self.events.push(ActiveEventState { kind, remaining: FRENZY_SECS }),
+            EventKind::Darkness => self.events.push(ActiveEventState {
+                kind,
+                remaining: DARKNESS_SECS,
+            }),
+            EventKind::Inversion => self.events.push(ActiveEventState {
+                kind,
+                remaining: INVERSION_SECS,
+            }),
+            EventKind::GoldRush => self.events.push(ActiveEventState {
+                kind,
+                remaining: GOLD_SECS,
+            }),
+            EventKind::SpeedFrenzy => self.events.push(ActiveEventState {
+                kind,
+                remaining: FRENZY_SECS,
+            }),
             EventKind::CapsuleFountain => {
                 // мгновенно: 15 капсул случайных типов сверху
-                let cols = (self.field.w / (self.field.w / popproto_core::field::COLS as f32)) as usize;
+                let cols =
+                    (self.field.w / (self.field.w / popproto_core::field::COLS as f32)) as usize;
                 for i in 0..15 {
                     let c = ((self.next_rand() * cols as f32) as usize).min(cols - 1);
                     let cellw = self.field.w / popproto_core::field::COLS as f32;
@@ -366,9 +436,17 @@ impl Game {
                     }
                     let id = self.next_capsule_id;
                     self.next_capsule_id += 1;
-                    self.capsules.push(Capsule { id, x, y: popproto_core::field::GRID_TOP + i as f32 * 4.0, kind: kind_c });
+                    self.capsules.push(Capsule {
+                        id,
+                        x,
+                        y: popproto_core::field::GRID_TOP + i as f32 * 4.0,
+                        kind: kind_c,
+                    });
                 }
-                msgs.push(ServerMsg::EventStarted { event: kind, duration_secs: 0.0 });
+                msgs.push(ServerMsg::EventStarted {
+                    event: kind,
+                    duration_secs: 0.0,
+                });
                 msgs.push(ServerMsg::EventEnded { event: kind });
                 return msgs;
             }
@@ -382,19 +460,29 @@ impl Game {
                     .collect();
                 for (pid, slot) in living {
                     let px = self.field.paddles[slot].x;
-                    self.field.add_ball(pid, px, self.field.h - 42.0 - READY_BALL_OFFSET);
+                    self.field
+                        .add_ball(pid, px, self.field.h - 42.0 - READY_BALL_OFFSET);
                 }
                 // до конца уровня: очистится в next_level
-                self.events.push(ActiveEventState { kind, remaining: 9999.0 });
+                self.events.push(ActiveEventState {
+                    kind,
+                    remaining: 9999.0,
+                });
             }
             EventKind::GroundShield => {
                 self.field.shield = true;
                 // до использования или конца уровня
-                self.events.push(ActiveEventState { kind, remaining: 9999.0 });
+                self.events.push(ActiveEventState {
+                    kind,
+                    remaining: 9999.0,
+                });
             }
         }
         let duration = self.events.last().map(|e| e.remaining).unwrap_or(0.0);
-        msgs.push(ServerMsg::EventStarted { event: kind, duration_secs: duration });
+        msgs.push(ServerMsg::EventStarted {
+            event: kind,
+            duration_secs: duration,
+        });
         msgs
     }
 
@@ -464,13 +552,19 @@ impl Game {
                     }
                 }
                 // Инверсия: зеркалим ввод на сервере (авторитетно для всех)
-                let x = if self.is_active(EventKind::Inversion) { self.field.w - x } else { x };
+                let x = if self.is_active(EventKind::Inversion) {
+                    self.field.w - x
+                } else {
+                    x
+                };
                 if let Some(slot) = self.slot_of(player_id) {
                     self.field.set_paddle_target(slot, x);
                 }
             }
             GameCmd::Action { player_id } => {
-                let Some(p) = self.players.iter().find(|p| p.player_id == player_id) else { return };
+                let Some(p) = self.players.iter().find(|p| p.player_id == player_id) else {
+                    return;
+                };
                 if !p.connected || p.lives == 0 || p.stun_secs > 0.0 {
                     return;
                 }
@@ -482,7 +576,12 @@ impl Game {
                 if ready {
                     // Запуск своего мяча под случайным углом ±0.25 рад от вертикали.
                     let angle = -std::f32::consts::FRAC_PI_2 + (self.next_rand() * 0.5 - 0.25);
-                    let ball_id = self.field.balls.iter().find(|b| b.owner == player_id).map(|b| b.id);
+                    let ball_id = self
+                        .field
+                        .balls
+                        .iter()
+                        .find(|b| b.owner == player_id)
+                        .map(|b| b.id);
                     if let Some(id) = ball_id {
                         self.field.launch(id, angle);
                     }
@@ -546,35 +645,58 @@ impl Game {
             .players
             .iter()
             .filter(|p| p.lives > 0 && !p.gone && p.stun_secs <= 0.0 && (p.is_bot || p.afk))
-            .map(|p| (p.slot, p.player_id, p.bot_level.unwrap_or(BotLevel::Normal), p.ready))
+            .map(|p| {
+                (
+                    p.slot,
+                    p.player_id,
+                    p.bot_level.unwrap_or(BotLevel::Normal),
+                    p.ready,
+                )
+            })
             .collect();
 
         for (slot, player_id, level, ready) in drivers {
             let brain = BotBrain::new(level);
             let delay = (brain.reaction_ticks as usize).min(self.ball_hist.len().saturating_sub(1));
-            let hist: Vec<f32> = self.ball_hist.iter().rev().nth(delay).cloned().unwrap_or_default();
+            let hist: Vec<f32> = self
+                .ball_hist
+                .iter()
+                .rev()
+                .nth(delay)
+                .cloned()
+                .unwrap_or_default();
             // цель: СВОЙ мяч (чужие — только подстраховка), самый низкий нисходящий
             let paddle_y = self.field.h - 42.0;
             let (delayed_x, view) = {
-                let own: Vec<_> = self.field.balls.iter().filter(|b| b.owner == player_id).collect();
+                let own: Vec<_> = self
+                    .field
+                    .balls
+                    .iter()
+                    .filter(|b| b.owner == player_id)
+                    .collect();
                 let chosen = own
                     .iter()
                     .filter(|b| b.vy > 0.0)
                     .max_by(|a, b| a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal))
                     .or_else(|| {
-                        own.iter()
-                            .min_by(|a, b| a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal))
+                        own.iter().min_by(|a, b| {
+                            a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal)
+                        })
                     })
                     .copied()
                     .or_else(|| {
-                        self.field
-                            .balls
-                            .iter()
-                            .max_by(|a, b| a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal))
+                        self.field.balls.iter().max_by(|a, b| {
+                            a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal)
+                        })
                     });
                 match chosen {
                     Some(b) => {
-                        let idx = self.field.balls.iter().position(|q| q.id == b.id).unwrap_or(0);
+                        let idx = self
+                            .field
+                            .balls
+                            .iter()
+                            .position(|q| q.id == b.id)
+                            .unwrap_or(0);
                         let ball_copy = popproto_core::field::Ball {
                             id: b.id,
                             owner: b.owner,
@@ -598,7 +720,12 @@ impl Game {
                     ),
                 }
             };
-            let ball_view = popproto_bot::BallView { x: view.x, y: view.y, vx: view.vx, vy: view.vy };
+            let ball_view = popproto_bot::BallView {
+                x: view.x,
+                y: view.y,
+                vx: view.vx,
+                vy: view.vy,
+            };
             // bias: куда выгоднее отвести мяч (-1 — кирпичи слева от точки падения)
             let brick_bias = {
                 let cellw = self.field.w / 10.0;
@@ -618,12 +745,19 @@ impl Game {
                     0.0
                 }
             };
-            let tx = brain.target_x(delayed_x, &ball_view, self.field.w, paddle_y, brick_bias, &mut || {
-                self.rng ^= self.rng << 13;
-                self.rng ^= self.rng >> 7;
-                self.rng ^= self.rng << 17;
-                (self.rng >> 40) as f32 / (1u64 << 24) as f32
-            });
+            let tx = brain.target_x(
+                delayed_x,
+                &ball_view,
+                self.field.w,
+                paddle_y,
+                brick_bias,
+                &mut || {
+                    self.rng ^= self.rng << 13;
+                    self.rng ^= self.rng >> 7;
+                    self.rng ^= self.rng << 17;
+                    (self.rng >> 40) as f32 / (1u64 << 24) as f32
+                },
+            );
             self.field.set_paddle_target(slot, tx);
 
             if ready {
@@ -653,13 +787,23 @@ impl Game {
                             cx += (br.c as f32 + 0.5) * cellw * bw;
                         }
                         let px = self.field.paddles[slot].x;
-                        let aim = if wsum > 0.0 { (cx / wsum - px) / 300.0 } else { 0.0 };
-                        -std::f32::consts::FRAC_PI_2 + aim.clamp(-1.0, 1.0) * 0.45
+                        let aim = if wsum > 0.0 {
+                            (cx / wsum - px) / 300.0
+                        } else {
+                            0.0
+                        };
+                        -std::f32::consts::FRAC_PI_2
+                            + aim.clamp(-1.0, 1.0) * 0.45
                             + (self.next_rand() * 0.1 - 0.05)
                     } else {
                         -std::f32::consts::FRAC_PI_2 + (self.next_rand() * 0.5 - 0.25)
                     };
-                    let ball_id = self.field.balls.iter().find(|b| b.owner == player_id).map(|b| b.id);
+                    let ball_id = self
+                        .field
+                        .balls
+                        .iter()
+                        .find(|b| b.owner == player_id)
+                        .map(|b| b.id);
                     if let Some(id) = ball_id {
                         self.field.launch(id, angle);
                     }
@@ -734,7 +878,14 @@ impl Game {
     fn apply_power(&mut self, slot: usize, kind: u8) {
         match kind {
             0 => {
-                let Some(owner) = self.players.iter().find(|p| p.slot == slot).map(|p| p.player_id) else { return };
+                let Some(owner) = self
+                    .players
+                    .iter()
+                    .find(|p| p.slot == slot)
+                    .map(|p| p.player_id)
+                else {
+                    return;
+                };
                 let src: Vec<(f32, f32, f32, f32)> = self
                     .field
                     .balls
@@ -878,7 +1029,11 @@ impl Game {
         for p in &mut self.players {
             p.wide_secs = (p.wide_secs - dt).max(0.0);
             p.laser_secs = (p.laser_secs - dt).max(0.0);
-            let w = if p.wide_secs > 0.0 { PADDLE_WIDE } else { popproto_core::field::PADDLE_BASE_W };
+            let w = if p.wide_secs > 0.0 {
+                PADDLE_WIDE
+            } else {
+                popproto_core::field::PADDLE_BASE_W
+            };
             if (self.field.paddles[p.slot].w - w).abs() > f32::EPSILON {
                 self.field.paddles[p.slot].w = w;
             }
@@ -889,7 +1044,11 @@ impl Game {
             if !ev.destroyed {
                 continue;
             }
-            let mult = if self.is_active(EventKind::GoldRush) { GOLD_MULT } else { 1 };
+            let mult = if self.is_active(EventKind::GoldRush) {
+                GOLD_MULT
+            } else {
+                1
+            };
             if let Some(p) = self.players.iter_mut().find(|p| p.player_id == ev.owner) {
                 p.combo = if p.combo_timer > 0.0 { p.combo + 1 } else { 1 };
                 p.combo_timer = COMBO_WINDOW;
@@ -954,7 +1113,9 @@ impl Game {
 
         // потерянные мячи -> жизни и респаун
         for owner in &res.lost {
-            let Some(p) = self.players.iter_mut().find(|p| p.player_id == *owner) else { continue };
+            let Some(p) = self.players.iter_mut().find(|p| p.player_id == *owner) else {
+                continue;
+            };
             if p.lives == 0 {
                 continue;
             }
@@ -964,7 +1125,8 @@ impl Game {
                 p.ready = true;
                 let slot = p.slot;
                 let px = self.field.paddles[slot].x;
-                self.field.add_ball(p.player_id, px, self.field.h - 42.0 - READY_BALL_OFFSET);
+                self.field
+                    .add_ball(p.player_id, px, self.field.h - 42.0 - READY_BALL_OFFSET);
             } else {
                 self.field.paddles[p.slot].alive = false;
             }
@@ -973,15 +1135,25 @@ impl Game {
         // переходы фаз
         if self.players.iter().all(|p| p.gone || p.lives == 0) {
             self.phase = MatchPhase::Over;
-            let reason = if self.mode == GameMode::Wave { MatchOverReason::Exhausted } else { MatchOverReason::AllDead };
-            msgs.push(ServerMsg::MatchOver { reason, scores: self.final_scores() });
+            let reason = if self.mode == GameMode::Wave {
+                MatchOverReason::Exhausted
+            } else {
+                MatchOverReason::AllDead
+            };
+            msgs.push(ServerMsg::MatchOver {
+                reason,
+                scores: self.final_scores(),
+            });
         } else if self.boss.is_some() {
             // босс-арена: уровень завершается смертью босса
             if self.boss.as_ref().unwrap().hp == 0 {
                 self.bosses_killed += 1;
                 if self.mode == GameMode::BossRush && self.bosses_killed >= BOSS_RUSH_BOSSES {
                     self.phase = MatchPhase::Win;
-                    msgs.push(ServerMsg::MatchOver { reason: MatchOverReason::Victory, scores: self.final_scores() });
+                    msgs.push(ServerMsg::MatchOver {
+                        reason: MatchOverReason::Victory,
+                        scores: self.final_scores(),
+                    });
                 } else {
                     self.boss = None;
                     self.phase = MatchPhase::LevelClear;
@@ -995,7 +1167,10 @@ impl Game {
                 self.field.load_level((self.level - 1) as usize);
             } else if self.level >= popproto_core::field::LEVELS.len() as u32 {
                 self.phase = MatchPhase::Win;
-                msgs.push(ServerMsg::MatchOver { reason: MatchOverReason::Victory, scores: self.final_scores() });
+                msgs.push(ServerMsg::MatchOver {
+                    reason: MatchOverReason::Victory,
+                    scores: self.final_scores(),
+                });
             } else {
                 self.phase = MatchPhase::LevelClear;
                 self.clear_timer = CLEAR_PAUSE;
@@ -1020,7 +1195,7 @@ impl Game {
                 boss_hits: p.boss_hits,
             })
             .collect();
-        scores.sort_by(|a, b| b.score.cmp(&a.score));
+        scores.sort_by_key(|s| std::cmp::Reverse(s.score));
         for (i, s) in scores.iter_mut().enumerate() {
             s.place = i as u32 + 1;
         }
@@ -1037,7 +1212,11 @@ impl Game {
             self.field.grid_clear();
             let kind_index = self.boss_kind_counter % crate::boss::BOSS_KINDS;
             self.boss_kind_counter += 1;
-            let living = self.players.iter().filter(|p| p.connected && !p.gone && p.lives > 0).count();
+            let living = self
+                .players
+                .iter()
+                .filter(|p| p.connected && !p.gone && p.lives > 0)
+                .count();
             self.boss = Some(Boss::new(kind_index, living, self.field.w));
             self.sent_bricks.clear();
         }
@@ -1056,7 +1235,8 @@ impl Game {
             .collect();
         for (pid, slot) in living {
             let px = self.field.paddles[slot].x;
-            self.field.add_ball(pid, px, self.field.h - 42.0 - READY_BALL_OFFSET);
+            self.field
+                .add_ball(pid, px, self.field.h - 42.0 - READY_BALL_OFFSET);
         }
         self.sent_bricks.clear();
         self.phase = MatchPhase::Ready;
@@ -1067,15 +1247,23 @@ impl Game {
         }
         self.sync_ready_balls();
         // Босс-арены на 3, 6, 9, 12; финальный 15-й — бронированная стена.
-        if self.level % 3 == 0 && self.level < popproto_core::field::LEVELS.len() as u32 {
+        if self.level.is_multiple_of(3) && self.level < popproto_core::field::LEVELS.len() as u32 {
             self.field.bricks.clear();
             self.field.grid_clear();
-            let living = self.players.iter().filter(|p| p.connected && !p.gone && p.lives > 0).count();
+            let living = self
+                .players
+                .iter()
+                .filter(|p| p.connected && !p.gone && p.lives > 0)
+                .count();
             let kind_index = self.boss_kind_counter % crate::boss::BOSS_KINDS;
             self.boss_kind_counter += 1;
             self.boss = Some(Boss::new(kind_index, living, self.field.w));
             self.sent_bricks.clear();
-            tracing::info!("уровень {}: босс-арена ({})", self.level, self.boss.as_ref().unwrap().kind.index());
+            tracing::info!(
+                "уровень {}: босс-арена ({})",
+                self.level,
+                self.boss.as_ref().unwrap().kind.index()
+            );
         }
     }
 
@@ -1083,13 +1271,17 @@ impl Game {
     /// Раз в 3 секунды шлём сетку целиком: реконнекты и редкие потери пакетов
     /// самолечатся, вместо отдельного протокола «запроси полный снап».
     pub fn snapshot(&mut self) -> Snapshot {
-        if self.tick % (TICK_HZ as u32 * 3) == 0 {
+        if self.tick.is_multiple_of(TICK_HZ * 3) {
             self.sent_bricks.clear();
         }
         let mut upserts = vec![];
         let mut removed = vec![];
-        let current: HashMap<u16, u8> =
-            self.field.bricks.iter().map(|b| (b.id, if b.stone { 255 } else { b.hp })).collect();
+        let current: HashMap<u16, u8> = self
+            .field
+            .bricks
+            .iter()
+            .map(|b| (b.id, if b.stone { 255 } else { b.hp }))
+            .collect();
         for b in &self.field.bricks {
             let hp = if b.stone { 255 } else { b.hp };
             match self.sent_bricks.get(&b.id) {
@@ -1134,7 +1326,12 @@ impl Game {
                 .field
                 .balls
                 .iter()
-                .map(|b| BallSnap { id: b.id, owner_id: b.owner, x: encode_coord(b.x), y: encode_coord(b.y) })
+                .map(|b| BallSnap {
+                    id: b.id,
+                    owner_id: b.owner,
+                    x: encode_coord(b.x),
+                    y: encode_coord(b.y),
+                })
                 .collect(),
             bricks_upsert: upserts,
             bricks_removed: removed,
@@ -1142,30 +1339,50 @@ impl Game {
             events: self
                 .events
                 .iter()
-                .map(|e| ActiveEvent { event: e.kind, remaining_secs: e.remaining })
+                .map(|e| ActiveEvent {
+                    event: e.kind,
+                    remaining_secs: e.remaining,
+                })
                 .collect(),
             boss: self.boss.as_ref().map(|b| b.snap()),
             combo: self
                 .players
                 .iter()
                 .filter(|p| p.combo >= 2)
-                .map(|p| ComboSnap { player_id: p.player_id, combo: p.combo })
+                .map(|p| ComboSnap {
+                    player_id: p.player_id,
+                    combo: p.combo,
+                })
                 .collect(),
             capsules: self
                 .capsules
                 .iter()
-                .map(|cp| popproto_core::CapsuleSnap { id: cp.id, x: encode_coord(cp.x), y: encode_coord(cp.y), kind: cp.kind })
+                .map(|cp| popproto_core::CapsuleSnap {
+                    id: cp.id,
+                    x: encode_coord(cp.x),
+                    y: encode_coord(cp.y),
+                    kind: cp.kind,
+                })
                 .collect(),
             bullets: self
                 .field
                 .bullets
                 .iter()
-                .map(|u| popproto_core::BulletSnap { id: u.id, owner_id: u.owner, x: encode_coord(u.x), y: encode_coord(u.y) })
+                .map(|u| popproto_core::BulletSnap {
+                    id: u.id,
+                    owner_id: u.owner,
+                    x: encode_coord(u.x),
+                    y: encode_coord(u.y),
+                })
                 .collect(),
             scores: self
                 .players
                 .iter()
-                .map(|p| ScoreSnap { player_id: p.player_id, score: p.score, lives: p.lives })
+                .map(|p| ScoreSnap {
+                    player_id: p.player_id,
+                    score: p.score,
+                    lives: p.lives,
+                })
                 .collect(),
             projs: self
                 .boss
@@ -1173,7 +1390,10 @@ impl Game {
                 .map(|b| {
                     b.projs
                         .iter()
-                        .map(|p| popproto_core::ProjSnap { x: encode_coord(p.x), y: encode_coord(p.y) })
+                        .map(|p| popproto_core::ProjSnap {
+                            x: encode_coord(p.x),
+                            y: encode_coord(p.y),
+                        })
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -1182,7 +1402,12 @@ impl Game {
 }
 
 fn brick_snap(b: &Brick) -> popproto_core::BrickSnap {
-    popproto_core::BrickSnap { id: b.id, c: b.c, r: b.r, hp: if b.stone { 255 } else { b.hp } }
+    popproto_core::BrickSnap {
+        id: b.id,
+        c: b.c,
+        r: b.r,
+        hp: if b.stone { 255 } else { b.hp },
+    }
 }
 
 /// Запуск игрового цикла комнаты: 30 Гц, снапшоты в broadcast комнаты.
@@ -1208,8 +1433,11 @@ pub fn spawn(
             }
             let mut msgs = game.tick(1.0 / TICK_HZ as f32);
             let snap = game.snapshot();
-            let final_scores: Vec<(u32, u32)> =
-                snap.scores.iter().map(|sc| (sc.player_id, sc.score)).collect();
+            let final_scores: Vec<(u32, u32)> = snap
+                .scores
+                .iter()
+                .map(|sc| (sc.player_id, sc.score))
+                .collect();
             msgs.push(ServerMsg::Snapshot(Box::new(snap)));
             for m in msgs {
                 if lobby.broadcast_raw(room_id, m).await.is_err() {
@@ -1300,7 +1528,13 @@ mod tests {
         g.handle_cmd(GameCmd::PlayerLeft { player_id: 1 });
         let msgs = g.tick(1.0 / TICK_HZ as f32);
         assert_eq!(g.phase, MatchPhase::Over);
-        assert!(msgs.iter().any(|m| matches!(m, ServerMsg::MatchOver { reason: MatchOverReason::AllDead, .. })));
+        assert!(msgs.iter().any(|m| matches!(
+            m,
+            ServerMsg::MatchOver {
+                reason: MatchOverReason::AllDead,
+                ..
+            }
+        )));
     }
 
     #[test]
@@ -1317,7 +1551,11 @@ mod tests {
         }
         assert_eq!(g.players[0].lives, 0);
         assert!(!g.field.paddles[0].alive, "ракетка выбывшего неактивна");
-        assert_eq!(g.phase, MatchPhase::Over, "единственный игрок выбыл — матч окончен");
+        assert_eq!(
+            g.phase,
+            MatchPhase::Over,
+            "единственный игрок выбыл — матч окончен"
+        );
     }
 
     #[test]
@@ -1325,12 +1563,23 @@ mod tests {
         let mut g = one_player_game();
         // капсула падает над ракеткой; кирпичи не трогаем, чтобы матч не ушёл в LevelClear
         let px = g.field.paddles[0].x;
-        g.capsules.push(Capsule { id: 1, x: px, y: 100.0, kind: 1 });
+        g.capsules.push(Capsule {
+            id: 1,
+            x: px,
+            y: 100.0,
+            kind: 1,
+        });
         for _ in 0..120 {
             g.tick(1.0 / TICK_HZ as f32);
         }
-        assert!(g.capsules.is_empty(), "капсула поймана (или упала и удалена)");
-        assert_eq!(g.field.paddles[0].w, PADDLE_WIDE, "эффект W применён поймавшим");
+        assert!(
+            g.capsules.is_empty(),
+            "капсула поймана (или упала и удалена)"
+        );
+        assert_eq!(
+            g.field.paddles[0].w, PADDLE_WIDE,
+            "эффект W применён поймавшим"
+        );
         assert!(g.players[0].wide_secs > 0.0);
         // через 18+ сек эффект гаснет
         for _ in 0..(WIDE_SECS * TICK_HZ as f32) as i32 + 2 {
@@ -1352,7 +1601,11 @@ mod tests {
         }
         assert_eq!(g.field.balls.len(), MAX_BALLS, "потолок мячей");
         // все мячи с нормальной скоростью
-        assert!(g.field.balls.iter().all(|b| b.vx * b.vx + b.vy * b.vy > 1.0));
+        assert!(g
+            .field
+            .balls
+            .iter()
+            .all(|b| b.vx * b.vx + b.vy * b.vy > 1.0));
     }
 
     #[test]
@@ -1364,13 +1617,22 @@ mod tests {
         let bricks_before = g.field.bricks.len();
         // целим ракетку в колонку с кирпичами и стреляем
         let cellw = g.field.w / popproto_core::field::COLS as f32;
-        g.handle_cmd(GameCmd::PaddleX { player_id: 1, x: cellw * 0.5 });
+        g.handle_cmd(GameCmd::PaddleX {
+            player_id: 1,
+            x: cellw * 0.5,
+        });
         for _ in 0..40 {
             g.handle_cmd(GameCmd::Action { player_id: 1 });
             g.tick(1.0 / TICK_HZ as f32);
         }
-        assert!(g.field.bullets.is_empty() || g.field.bricks.len() < bricks_before, "пули бьют кирпичи");
-        assert!(g.field.bricks.len() < bricks_before, "кирпичи разрушены лазером");
+        assert!(
+            g.field.bullets.is_empty() || g.field.bricks.len() < bricks_before,
+            "пули бьют кирпичи"
+        );
+        assert!(
+            g.field.bricks.len() < bricks_before,
+            "кирпичи разрушены лазером"
+        );
     }
 
     #[test]
@@ -1412,7 +1674,10 @@ mod tests {
         }
         let ball_x = g.field.balls[0].x;
         let target = g.field.paddles[0].target;
-        assert!((target - ball_x).abs() < 150.0, "бот ведёт ракетку за мячом (шум ±30)");
+        assert!(
+            (target - ball_x).abs() < 150.0,
+            "бот ведёт ракетку за мячом (шум ±30)"
+        );
     }
 
     #[test]
@@ -1425,15 +1690,28 @@ mod tests {
         }
         assert!(g.players[0].afk, "АФК-режим включён");
         // ввод возвращает управление мгновенно
-        g.handle_cmd(GameCmd::PaddleX { player_id: 1, x: 100.0 });
+        g.handle_cmd(GameCmd::PaddleX {
+            player_id: 1,
+            x: 100.0,
+        });
         assert!(!g.players[0].afk);
-        assert_eq!(g.field.paddles[0].target, 100.0, "цель игрока не перебита ботом");
+        assert_eq!(
+            g.field.paddles[0].target, 100.0,
+            "цель игрока не перебита ботом"
+        );
     }
 
     #[test]
     fn bot_seat_launches_by_itself() {
         let mut g = Game::new(
-            vec![(1, "Тима".into(), None), (popproto_core::BOT_ID_BASE, "Бот·Профи".into(), Some(BotLevel::Pro))],
+            vec![
+                (1, "Тима".into(), None),
+                (
+                    popproto_core::BOT_ID_BASE,
+                    "Бот·Профи".into(),
+                    Some(BotLevel::Pro),
+                ),
+            ],
             1.0,
             true,
             GameMode::Coop,
@@ -1443,7 +1721,12 @@ mod tests {
             g.tick(1.0 / TICK_HZ as f32);
         }
         assert_eq!(g.phase, MatchPhase::Play, "бот начал игру");
-        let bot_ball = g.field.balls.iter().find(|b| b.owner == popproto_core::BOT_ID_BASE).unwrap();
+        let bot_ball = g
+            .field
+            .balls
+            .iter()
+            .find(|b| b.owner == popproto_core::BOT_ID_BASE)
+            .unwrap();
         assert_ne!(bot_ball.vy, 0.0);
     }
 
@@ -1475,7 +1758,8 @@ mod tests {
             let br = g.field.bricks[0].clone();
             let cellw = g.field.w / 10.0;
             let bx = (br.c as f32 + 0.5) * cellw;
-            let by = popproto_core::field::GRID_TOP + br.r as f32 * popproto_core::field::CELL_H + 13.0;
+            let by =
+                popproto_core::field::GRID_TOP + br.r as f32 * popproto_core::field::CELL_H + 13.0;
             {
                 let b = g.field.balls.first_mut().unwrap();
                 b.x = bx;
@@ -1517,7 +1801,10 @@ mod tests {
                 boss.shield_respawn = 999.0;
             }
             g.handle_cmd(GameCmd::Action { player_id: 1 });
-            let (bx, by) = { let b = g.boss.as_ref().unwrap(); (b.x, b.y) };
+            let (bx, by) = {
+                let b = g.boss.as_ref().unwrap();
+                (b.x, b.y)
+            };
             {
                 let b = g.field.balls.first_mut().unwrap();
                 b.x = bx;
@@ -1557,22 +1844,43 @@ mod tests {
         for _ in 0..(WAVE_PERIOD * 2.0 * TICK_HZ as f32) as i32 + 5 {
             g.tick(1.0 / TICK_HZ as f32);
         }
-        assert!(g.field.bricks.len() >= count0 + popproto_core::field::COLS, "волны досыпают ряды");
+        assert!(
+            g.field.bricks.len() >= count0 + popproto_core::field::COLS,
+            "волны досыпают ряды"
+        );
         // волна не побеждается: зачистка поля не даёт Win
         g.field.bricks.clear();
         let msgs = g.tick(1.0 / TICK_HZ as f32);
-        assert!(!msgs.iter().any(|m| matches!(m, ServerMsg::MatchOver { reason: MatchOverReason::Victory, .. })));
+        assert!(!msgs.iter().any(|m| matches!(
+            m,
+            ServerMsg::MatchOver {
+                reason: MatchOverReason::Victory,
+                ..
+            }
+        )));
         // все выбыли => Exhausted
         g.handle_cmd(GameCmd::PlayerLeft { player_id: 1 });
         let msgs = g.tick(1.0 / TICK_HZ as f32);
-        assert!(msgs.iter().any(|m| matches!(m, ServerMsg::MatchOver { reason: MatchOverReason::Exhausted, .. })));
+        assert!(msgs.iter().any(|m| matches!(
+            m,
+            ServerMsg::MatchOver {
+                reason: MatchOverReason::Exhausted,
+                ..
+            }
+        )));
     }
 
     #[test]
     fn bots_actually_score_and_survive() {
         // 6 ботов-профи: каждый ведёт СВОЙ мяч и набирает очки
         let roster: Vec<(u32, String, Option<BotLevel>)> = (0..6)
-            .map(|i| (popproto_core::BOT_ID_BASE + i as u32, format!("Бот{}", i), Some(BotLevel::Pro)))
+            .map(|i| {
+                (
+                    popproto_core::BOT_ID_BASE + i as u32,
+                    format!("Бот{}", i),
+                    Some(BotLevel::Pro),
+                )
+            })
             .collect();
         let mut g = Game::new(roster, 1.0, false, GameMode::Coop);
         let total_ticks = (30.0 * TICK_HZ as f32) as i32;
@@ -1581,11 +1889,24 @@ mod tests {
         }
         let scores: Vec<u32> = g.players.iter().map(|p| p.score).collect();
         let alive = g.players.iter().filter(|p| p.lives > 0).count();
-        assert!(scores.iter().all(|s| *s > 0), "каждый бот должен набрать очки: {:?}", scores);
-        assert!(alive >= 4, "большинство ботов выживает за 30 с (alive={}): {:?}", alive, scores);
+        assert!(
+            scores.iter().all(|s| *s > 0),
+            "каждый бот должен набрать очки: {:?}",
+            scores
+        );
+        assert!(
+            alive >= 4,
+            "большинство ботов выживает за 30 с (alive={}): {:?}",
+            alive,
+            scores
+        );
         let avg = scores.iter().sum::<u32>() / scores.len() as u32;
         // одиночный профи даёт ~120; на поле для 7 (1400px) циклы мяча вдвое длиннее
-        assert!(avg >= 50, "профи в среднем ≥50 очков за 30 с на широком поле (avg={})", avg);
+        assert!(
+            avg >= 50,
+            "профи в среднем ≥50 очков за 30 с на широком поле (avg={})",
+            avg
+        );
     }
 
     /* ---------- тесты боссов ---------- */
@@ -1601,7 +1922,9 @@ mod tests {
         let mut g = boss_game();
         g.field.bricks.clear();
         let msgs = g.tick(1.0 / TICK_HZ as f32); // уровень зачищен -> LevelClear
-        assert!(msgs.iter().any(|m| matches!(m, ServerMsg::LevelCleared { level: 1 })));
+        assert!(msgs
+            .iter()
+            .any(|m| matches!(m, ServerMsg::LevelCleared { level: 1 })));
         for _ in 0..(CLEAR_PAUSE * TICK_HZ as f32) as i32 + 4 {
             g.tick(1.0 / TICK_HZ as f32);
         }
@@ -1614,12 +1937,18 @@ mod tests {
         }
         assert_eq!(g.level, 3);
         let boss = g.boss.as_ref().expect("уровень 3 — босс");
-        assert_eq!(boss.max_hp, crate::boss::BOSS_HP_PER_PLAYER, "HP = база × 1 игрок");
+        assert_eq!(
+            boss.max_hp,
+            crate::boss::BOSS_HP_PER_PLAYER,
+            "HP = база × 1 игрок"
+        );
         assert!(g.field.bricks.is_empty(), "арена без кирпичей");
         assert!(!g.field.destructible_left());
         // тик в босс-арене не завершает уровень мгновенно
         let msgs = g.tick(1.0 / TICK_HZ as f32);
-        assert!(!msgs.iter().any(|m| matches!(m, ServerMsg::LevelCleared { .. })));
+        assert!(!msgs
+            .iter()
+            .any(|m| matches!(m, ServerMsg::LevelCleared { .. })));
     }
 
     #[test]
@@ -1665,14 +1994,20 @@ mod tests {
             boss.hp
         };
         // мяч кладём внутрь радиуса по СВЕЖИМ координатам: босс дрейфует
-        let (bx, by) = { let b = g.boss.as_ref().unwrap(); (b.x, b.y) };
+        let (bx, by) = {
+            let b = g.boss.as_ref().unwrap();
+            (b.x, b.y)
+        };
         let b = g.field.balls.first_mut().unwrap();
         b.x = bx;
         b.y = by + 30.0;
         b.vx = 0.0;
         b.vy = -BASE_SPEED;
         g.tick(1.0 / TICK_HZ as f32);
-        assert!(g.boss.as_ref().unwrap().hp < hp2, "без щитов босс получает урон");
+        assert!(
+            g.boss.as_ref().unwrap().hp < hp2,
+            "без щитов босс получает урон"
+        );
     }
 
     #[test]
@@ -1682,23 +2017,37 @@ mod tests {
         let px = g.field.paddles[0].x;
         // снаряд прямо над ракеткой
         let boss = g.boss.as_mut().unwrap();
-        boss.projs.push(crate::boss::Proj { id: 99, x: px, y: g.field.h - 80.0, vx: 0.0, vy: crate::boss::PROJ_SPEED });
-        drop(boss);
+        boss.projs.push(crate::boss::Proj {
+            id: 99,
+            x: px,
+            y: g.field.h - 80.0,
+            vx: 0.0,
+            vy: crate::boss::PROJ_SPEED,
+        });
         for _ in 0..20 {
             g.tick(1.0 / TICK_HZ as f32);
         }
         assert!(g.players[0].stun_secs > 0.0, "ракетка стана снарядом");
         // стан блокирует ввод
         let x_before = g.field.paddles[0].target;
-        g.handle_cmd(GameCmd::PaddleX { player_id: 1, x: 100.0 });
+        g.handle_cmd(GameCmd::PaddleX {
+            player_id: 1,
+            x: 100.0,
+        });
         g.tick(1.0 / TICK_HZ as f32);
-        assert_eq!(g.field.paddles[0].target, x_before, "стан замораживает ракетку");
+        assert_eq!(
+            g.field.paddles[0].target, x_before,
+            "стан замораживает ракетку"
+        );
         // через 2+ с стан спадает
         for _ in 0..(STUN_SECS * TICK_HZ as f32) as i32 + 4 {
             g.tick(1.0 / TICK_HZ as f32);
         }
         assert!(g.players[0].stun_secs <= 0.0);
-        g.handle_cmd(GameCmd::PaddleX { player_id: 1, x: 100.0 });
+        g.handle_cmd(GameCmd::PaddleX {
+            player_id: 1,
+            x: 100.0,
+        });
         assert!((g.field.paddles[0].target - 100.0).abs() < 1.0);
     }
 
@@ -1720,7 +2069,10 @@ mod tests {
         let field = &mut g.field;
         boss.step(dt * 5.0, field, &xs);
         // после step: если был удар таймера — ярость уже включена при 25% HP
-        assert!(boss.enraged || boss.hp == 0 || before >= 0.0, "состояние босса согласовано");
+        assert!(
+            boss.enraged || boss.hp == 0 || before >= 0.0,
+            "состояние босса согласовано"
+        );
     }
 
     #[test]
@@ -1741,7 +2093,10 @@ mod tests {
         }
         // мяч в босса (запуск — иначе sync вернёт мяч на ракетку; внутрь радиуса — босс дрейфует)
         g.handle_cmd(GameCmd::Action { player_id: 1 });
-        let (bx, by) = { let b = g.boss.as_ref().unwrap(); (b.x, b.y) };
+        let (bx, by) = {
+            let b = g.boss.as_ref().unwrap();
+            (b.x, b.y)
+        };
         let b = g.field.balls.first_mut().unwrap();
         b.x = bx;
         b.y = by + 30.0;
@@ -1756,7 +2111,11 @@ mod tests {
                 break;
             }
         }
-        assert_eq!(g.phase, MatchPhase::LevelClear, "смерть босса = уровень пройден");
+        assert_eq!(
+            g.phase,
+            MatchPhase::LevelClear,
+            "смерть босса = уровень пройден"
+        );
         assert!(msgs.is_empty() || true);
     }
 
@@ -1790,7 +2149,13 @@ mod tests {
         b.vx = 0.0;
         b.vy = -BASE_SPEED;
         let msgs = g.start_event(EventKind::GoldRush);
-        assert!(msgs.iter().any(|m| matches!(m, ServerMsg::EventStarted { event: EventKind::GoldRush, .. })));
+        assert!(msgs.iter().any(|m| matches!(
+            m,
+            ServerMsg::EventStarted {
+                event: EventKind::GoldRush,
+                ..
+            }
+        )));
         let before = g.players[0].score;
         for _ in 0..30 {
             g.tick(1.0 / TICK_HZ as f32);
@@ -1810,14 +2175,26 @@ mod tests {
         let mut g = game_no_events();
         g.start_event(EventKind::Inversion);
         let w = g.field.w;
-        g.handle_cmd(GameCmd::PaddleX { player_id: 1, x: 100.0 });
+        g.handle_cmd(GameCmd::PaddleX {
+            player_id: 1,
+            x: 100.0,
+        });
         g.tick(1.0 / TICK_HZ as f32);
-        assert!((g.field.paddles[0].target - (w - 100.0)).abs() < 1.0, "ввод зеркалится");
+        assert!(
+            (g.field.paddles[0].target - (w - 100.0)).abs() < 1.0,
+            "ввод зеркалится"
+        );
         for _ in 0..(INVERSION_SECS * TICK_HZ as f32) as i32 + 2 {
             g.tick(1.0 / TICK_HZ as f32);
         }
-        g.handle_cmd(GameCmd::PaddleX { player_id: 1, x: 100.0 });
-        assert!((g.field.paddles[0].target - 100.0).abs() < 1.0, "инверсия кончилась");
+        g.handle_cmd(GameCmd::PaddleX {
+            player_id: 1,
+            x: 100.0,
+        });
+        assert!(
+            (g.field.paddles[0].target - 100.0).abs() < 1.0,
+            "инверсия кончилась"
+        );
     }
 
     #[test]
@@ -1838,8 +2215,22 @@ mod tests {
         let mut g = game_no_events();
         let msgs = g.start_event(EventKind::CapsuleFountain);
         assert_eq!(g.capsules.len(), 15);
-        assert!(msgs.iter().any(|m| matches!(m, ServerMsg::EventStarted { event: EventKind::CapsuleFountain, .. })));
-        assert!(msgs.iter().any(|m| matches!(m, ServerMsg::EventEnded { event: EventKind::CapsuleFountain })), "мгновенный евент закрывается сразу");
+        assert!(msgs.iter().any(|m| matches!(
+            m,
+            ServerMsg::EventStarted {
+                event: EventKind::CapsuleFountain,
+                ..
+            }
+        )));
+        assert!(
+            msgs.iter().any(|m| matches!(
+                m,
+                ServerMsg::EventEnded {
+                    event: EventKind::CapsuleFountain
+                }
+            )),
+            "мгновенный евент закрывается сразу"
+        );
     }
 
     #[test]
@@ -1890,8 +2281,14 @@ mod tests {
                 saw_stone = true;
             }
         }
-        assert!(saw_stone, "камни упали и были каменными (сняты в конце евента)");
-        assert!(g.field.bricks.iter().all(|b| !b.stone), "камни камнепада исчезли с концом евента");
+        assert!(
+            saw_stone,
+            "камни упали и были каменными (сняты в конце евента)"
+        );
+        assert!(
+            g.field.bricks.iter().all(|b| !b.stone),
+            "камни камнепада исчезли с концом евента"
+        );
     }
 
     #[test]
@@ -1943,34 +2340,45 @@ mod tests {
             assert_eq!(uniq.len(), active.len(), "нет дублей активных евентов");
         }
         // финальный евент мог истечь прямо перед последним тиком — считаем запуски
-        assert!(started >= 2, "за 3+ часа таймер успел сработать минимум дважды ({} запусков)", started);
+        assert!(
+            started >= 2,
+            "за 3+ часа таймер успел сработать минимум дважды ({} запусков)",
+            started
+        );
     }
 
     #[test]
     fn snapshot_diffs_bricks() {
         let mut g = one_player_game();
         // уводим тик с кратного 90 (полный ресинк раз в 3 с)
-        while g.tick % (TICK_HZ as u32 * 3) == 0 {
+        while g.tick.is_multiple_of(TICK_HZ * 3) {
             g.tick += 1;
         }
         let s1 = g.snapshot();
-        assert!(!s1.bricks_upsert.is_empty(), "первый снапшот несёт все кирпичи");
+        assert!(
+            !s1.bricks_upsert.is_empty(),
+            "первый снапшот несёт все кирпичи"
+        );
         g.tick += 1;
         let s2 = g.snapshot();
         assert!(s2.bricks_upsert.is_empty(), "без изменений дифф пуст");
         assert!(s2.bricks_removed.is_empty());
         // периодический полный ресинк: на кратном тике сетка уходит целиком
-        while g.tick % (TICK_HZ as u32 * 3) != 0 {
+        while !g.tick.is_multiple_of(TICK_HZ * 3) {
             g.tick += 1;
         }
         let s3 = g.snapshot();
-        assert_eq!(s3.bricks_upsert.len(), s1.bricks_upsert.len(), "ресинк несёт всю сетку");
+        assert_eq!(
+            s3.bricks_upsert.len(),
+            s1.bricks_upsert.len(),
+            "ресинк несёт всю сетку"
+        );
     }
 
     #[test]
     fn reconnect_resends_full_grid() {
         let mut g = one_player_game();
-        while g.tick % (TICK_HZ as u32 * 3) == 0 {
+        while g.tick.is_multiple_of(TICK_HZ * 3) {
             g.tick += 1;
         }
         let s1 = g.snapshot(); // сервер отправил дельту
@@ -1980,7 +2388,11 @@ mod tests {
         g.handle_cmd(GameCmd::PlayerReconnected { player_id: 1 });
         g.tick += 1;
         let s3 = g.snapshot();
-        assert_eq!(s3.bricks_upsert.len(), s1.bricks_upsert.len(), "после реконнекта сетка уходит целиком");
+        assert_eq!(
+            s3.bricks_upsert.len(),
+            s1.bricks_upsert.len(),
+            "после реконнекта сетка уходит целиком"
+        );
     }
 
     #[test]
@@ -1989,7 +2401,9 @@ mod tests {
         g.field.bricks.clear();
         let msgs = g.tick(1.0 / TICK_HZ as f32);
         assert_eq!(g.phase, MatchPhase::LevelClear);
-        assert!(msgs.iter().any(|m| matches!(m, ServerMsg::LevelCleared { level: 1 })));
+        assert!(msgs
+            .iter()
+            .any(|m| matches!(m, ServerMsg::LevelCleared { level: 1 })));
         // Пауза между уровнями ~1.8 с = 54 тика; даём запас на округление f32.
         for _ in 0..60 {
             g.tick(1.0 / TICK_HZ as f32);
@@ -1999,5 +2413,3 @@ mod tests {
         assert!(!g.field.bricks.is_empty());
     }
 }
-
-

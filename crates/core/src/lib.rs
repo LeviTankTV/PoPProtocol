@@ -55,7 +55,11 @@ mod tests {
     #[test]
     fn client_msg_roundtrip() {
         let msgs = vec![
-            ClientMsg::Hello { protocol: PROTOCOL_VERSION, name: "Тима".into(), token: Some("abc123".into()) },
+            ClientMsg::Hello {
+                protocol: PROTOCOL_VERSION,
+                name: "Тима".into(),
+                token: Some("abc123".into()),
+            },
             ClientMsg::PaddleX(412.75),
             ClientMsg::Action,
             ClientMsg::Ping(42),

@@ -58,7 +58,11 @@ mod tests {
     #[test]
     fn stones_are_rare() {
         let pat = generate_pattern(7, 40);
-        let stones = pat.iter().flat_map(|r| r.chars()).filter(|c| *c == 'x').count();
+        let stones = pat
+            .iter()
+            .flat_map(|r| r.chars())
+            .filter(|c| *c == 'x')
+            .count();
         let total = 40 * COLS;
         assert!(stones * 20 < total, "камней должно быть ~3%, а не много");
     }

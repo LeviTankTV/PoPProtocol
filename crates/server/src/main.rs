@@ -52,7 +52,10 @@ async fn main() {
         lobby,
     };
     Lobby::spawn_sweeper(state.lobby.as_ref().clone());
-    let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8080);
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8080);
 
     let app = Router::new()
         .route("/", get(index))
@@ -64,7 +67,9 @@ async fn main() {
         .route("/ws", get(ws::upgrade))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await.expect("bind 0.0.0.0");
+    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
+        .await
+        .expect("bind 0.0.0.0");
     tracing::info!("PoP - Protocol server listening on http://0.0.0.0:{port}");
     axum::serve(listener, app).await.expect("server error");
 }
@@ -112,7 +117,8 @@ async fn rooms_rest(State(state): State<AppState>) -> Response {
 /// Глобальный топ по XP.
 async fn leaderboard_rest(State(state): State<AppState>) -> Response {
     let top = state.store.leaderboard(10).await;
-    Json(serde_json::json!(top.iter()
+    Json(serde_json::json!(top
+        .iter()
         .map(|e| serde_json::json!({ "name": e.name, "xp": e.xp }))
         .collect::<Vec<_>>()))
     .into_response()

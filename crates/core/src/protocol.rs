@@ -19,39 +19,70 @@ pub const BOT_ID_BASE: u32 = 0xF000_0000;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ClientMsg {
     /// Первый пакет соединения. Сервер отвечает Welcome или Error.
-    Hello { protocol: u16, name: String, token: Option<String> },
+    Hello {
+        protocol: u16,
+        name: String,
+        token: Option<String>,
+    },
     RequestRoomList,
-    CreateRoom { name: String, password: Option<String>, mode: GameMode, settings: RoomSettings },
-    JoinRoom { code: String, password: Option<String> },
+    CreateRoom {
+        name: String,
+        password: Option<String>,
+        mode: GameMode,
+        settings: RoomSettings,
+    },
+    JoinRoom {
+        code: String,
+        password: Option<String>,
+    },
     LeaveRoom,
     SetReady(bool),
     /// Только хост; стартует матч, если все игроки готовы.
     StartMatch,
     /// Только хост.
-    Kick { player_id: u32 },
+    Kick {
+        player_id: u32,
+    },
     /// Движение своей ракетки, координата X поля.
     PaddleX(f32),
     /// Запуск мяча из состояния ready / выстрел лазером.
     Action,
     /// Текстовый чат — только в лобби комнаты; в бою действует колесо эмоций.
-    Chat { text: String },
+    Chat {
+        text: String,
+    },
     /// Колесо эмоций в бою, индекс фразы 0..=9.
-    Emote { emote: u8 },
+    Emote {
+        emote: u8,
+    },
     Ping(u64),
     /// Только хост: добавить бота в свободный слот.
-    AddBot { level: BotLevel },
+    AddBot {
+        level: BotLevel,
+    },
     /// Только хост: убрать бота.
-    RemoveBot { player_id: u32 },
+    RemoveBot {
+        player_id: u32,
+    },
     /// Сменить цвет ракетки/мячей (если цвет свободен в комнате).
-    SetColor { color: u8 },
+    SetColor {
+        color: u8,
+    },
 }
 
 /* ---------- сервер -> клиент ---------- */
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ServerMsg {
-    Welcome { player_id: u32, token: String, name: String },
-    Error { code: ErrCode, text: String },
+    Welcome {
+        player_id: u32,
+        token: String,
+        name: String,
+    },
+    Error {
+        code: ErrCode,
+        text: String,
+    },
     Pong(u64),
 
     RoomList(Vec<RoomSummary>),
@@ -59,18 +90,38 @@ pub enum ServerMsg {
     RoomState(Box<RoomState>),
     MatchStarted,
     Snapshot(Box<Snapshot>),
-    LevelCleared { level: u32 },
-    MatchOver { reason: MatchOverReason, scores: Vec<FinalScore> },
+    LevelCleared {
+        level: u32,
+    },
+    MatchOver {
+        reason: MatchOverReason,
+        scores: Vec<FinalScore>,
+    },
 
-    EventStarted { event: EventKind, duration_secs: f32 },
-    EventEnded { event: EventKind },
+    EventStarted {
+        event: EventKind,
+        duration_secs: f32,
+    },
+    EventEnded {
+        event: EventKind,
+    },
 
-    Chat { player_id: u32, text: String },
-    Emote { player_id: u32, emote: u8 },
+    Chat {
+        player_id: u32,
+        text: String,
+    },
+    Emote {
+        player_id: u32,
+        emote: u8,
+    },
 
     PlayerJoined(Box<PlayerInfo>),
-    PlayerLeft { player_id: u32 },
-    HostChanged { player_id: u32 },
+    PlayerLeft {
+        player_id: u32,
+    },
+    HostChanged {
+        player_id: u32,
+    },
 }
 
 /* ---------- лобби и комнаты ---------- */
@@ -98,7 +149,12 @@ pub struct RoomSettings {
 
 impl Default for RoomSettings {
     fn default() -> Self {
-        Self { max_players: MAX_PLAYERS as u8, events_enabled: true, bosses_enabled: true, speed_factor: 1.0 }
+        Self {
+            max_players: MAX_PLAYERS as u8,
+            events_enabled: true,
+            bosses_enabled: true,
+            speed_factor: 1.0,
+        }
     }
 }
 
@@ -383,8 +439,8 @@ pub struct FinalScore {
 
 /// Фиксированная палитра цветов игроков, индексы в PlayerInfo.color.
 pub const PLAYER_COLORS: [&str; 10] = [
-    "#ff6b6b", "#feca57", "#48dbfb", "#1dd1a1", "#a55eea",
-    "#ff9ff3", "#ee7724", "#4a69bd", "#10ac84", "#e0181d",
+    "#ff6b6b", "#feca57", "#48dbfb", "#1dd1a1", "#a55eea", "#ff9ff3", "#ee7724", "#4a69bd",
+    "#10ac84", "#e0181d",
 ];
 
 #[cfg(test)]
@@ -398,8 +454,15 @@ mod tests {
 
     #[test]
     fn hello_welcome_roundtrip() {
-        roundtrip(ServerMsg::Welcome { player_id: 1, token: "tok123".into(), name: "Тима".into() });
-        roundtrip(ServerMsg::Error { code: ErrCode::RoomFull, text: "комната полна".into() });
+        roundtrip(ServerMsg::Welcome {
+            player_id: 1,
+            token: "tok123".into(),
+            name: "Тима".into(),
+        });
+        roundtrip(ServerMsg::Error {
+            code: ErrCode::RoomFull,
+            text: "комната полна".into(),
+        });
     }
 
     #[test]
@@ -411,19 +474,79 @@ mod tests {
             phase: MatchPhase::Play,
             level: 3,
             players: vec![
-                PlayerSnap { id: 1, x: encode_coord(120.5), w: encode_coord(118.0), state: PlayerState::Alive },
-                PlayerSnap { id: 2, x: encode_coord(400.0), w: encode_coord(118.0), state: PlayerState::BotControlled },
+                PlayerSnap {
+                    id: 1,
+                    x: encode_coord(120.5),
+                    w: encode_coord(118.0),
+                    state: PlayerState::Alive,
+                },
+                PlayerSnap {
+                    id: 2,
+                    x: encode_coord(400.0),
+                    w: encode_coord(118.0),
+                    state: PlayerState::BotControlled,
+                },
             ],
-            balls: vec![BallSnap { id: 1, owner_id: 1, x: encode_coord(321.6), y: encode_coord(512.3) }],
-            bricks_upsert: vec![BrickSnap { id: 10, c: 3, r: 1, hp: 2 }, BrickSnap { id: 11, c: 4, r: 1, hp: 255 }],
+            balls: vec![BallSnap {
+                id: 1,
+                owner_id: 1,
+                x: encode_coord(321.6),
+                y: encode_coord(512.3),
+            }],
+            bricks_upsert: vec![
+                BrickSnap {
+                    id: 10,
+                    c: 3,
+                    r: 1,
+                    hp: 2,
+                },
+                BrickSnap {
+                    id: 11,
+                    c: 4,
+                    r: 1,
+                    hp: 255,
+                },
+            ],
             bricks_removed: vec![9],
-            capsules: vec![CapsuleSnap { id: 5, x: encode_coord(100.0), y: encode_coord(300.0), kind: 0 }],
-            bullets: vec![BulletSnap { id: 6, owner_id: 1, x: encode_coord(120.0), y: encode_coord(540.0) }],
-            floats: vec![FloatSnap { x: encode_coord(50.0), y: encode_coord(60.0), text: "+120".into(), color: 3 }],
-            boss: Some(BossSnap { kind: 2, hp: 900, max_hp: 1000, phase: 1, x: encode_coord(800.0), y: encode_coord(150.0) }),
-            events: vec![ActiveEvent { event: EventKind::Darkness, remaining_secs: 7.5 }],
-            combo: vec![ComboSnap { player_id: 1, combo: 4 }],
-            scores: vec![ScoreSnap { player_id: 1, score: 1230, lives: 2 }],
+            capsules: vec![CapsuleSnap {
+                id: 5,
+                x: encode_coord(100.0),
+                y: encode_coord(300.0),
+                kind: 0,
+            }],
+            bullets: vec![BulletSnap {
+                id: 6,
+                owner_id: 1,
+                x: encode_coord(120.0),
+                y: encode_coord(540.0),
+            }],
+            floats: vec![FloatSnap {
+                x: encode_coord(50.0),
+                y: encode_coord(60.0),
+                text: "+120".into(),
+                color: 3,
+            }],
+            boss: Some(BossSnap {
+                kind: 2,
+                hp: 900,
+                max_hp: 1000,
+                phase: 1,
+                x: encode_coord(800.0),
+                y: encode_coord(150.0),
+            }),
+            events: vec![ActiveEvent {
+                event: EventKind::Darkness,
+                remaining_secs: 7.5,
+            }],
+            combo: vec![ComboSnap {
+                player_id: 1,
+                combo: 4,
+            }],
+            scores: vec![ScoreSnap {
+                player_id: 1,
+                score: 1230,
+                lives: 2,
+            }],
             projs: vec![ProjSnap { x: 100, y: 400 }],
         };
         roundtrip(ServerMsg::Snapshot(Box::new(snap)));
@@ -440,8 +563,16 @@ mod tests {
             host_id: 7,
             phase: RoomPhase::Lobby,
             players: vec![PlayerInfo {
-                id: 7, name: "Тима".into(), ready: true, is_bot: false,
-                bot_level: None, score: 0, lives: 3, color: 0, xp: 42, online: true,
+                id: 7,
+                name: "Тима".into(),
+                ready: true,
+                is_bot: false,
+                bot_level: None,
+                score: 0,
+                lives: 3,
+                color: 0,
+                xp: 42,
+                online: true,
             }],
             spectators: vec![],
         };
@@ -461,9 +592,15 @@ mod tests {
     fn event_kinds_complete() {
         // Ровно 9 евентов из спецификации §5 — новые добавлять только в конец.
         let all = [
-            EventKind::MeteorShower, EventKind::Darkness, EventKind::Inversion,
-            EventKind::GoldRush, EventKind::SpeedFrenzy, EventKind::Rockfall,
-            EventKind::CapsuleFountain, EventKind::DoubleBall, EventKind::GroundShield,
+            EventKind::MeteorShower,
+            EventKind::Darkness,
+            EventKind::Inversion,
+            EventKind::GoldRush,
+            EventKind::SpeedFrenzy,
+            EventKind::Rockfall,
+            EventKind::CapsuleFountain,
+            EventKind::DoubleBall,
+            EventKind::GroundShield,
         ];
         assert_eq!(all.len(), 9);
     }

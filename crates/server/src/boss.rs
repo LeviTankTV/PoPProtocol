@@ -21,6 +21,7 @@ pub const ENRAGE_AT: f32 = 0.3;
 
 #[derive(Debug, Clone)]
 pub struct Shield {
+    #[allow(dead_code)] // зарезервировано: визуальные эффекты щитов
     pub id: u16,
     pub hp: u8,
     /// Угол на орбите вокруг босса, радианы.
@@ -29,6 +30,7 @@ pub struct Shield {
 
 #[derive(Debug, Clone)]
 pub struct Proj {
+    #[allow(dead_code)] // зарезервировано: различимые типы снарядов
     pub id: u16,
     pub x: f32,
     pub y: f32,
@@ -141,7 +143,11 @@ impl Boss {
             x: field_w / 2.0,
             y: 160.0,
             vx: kind.speed(),
-            vy: if kind == BossKind::Cube { kind.speed() * 0.6 } else { 0.0 },
+            vy: if kind == BossKind::Cube {
+                kind.speed() * 0.6
+            } else {
+                0.0
+            },
             shields: vec![],
             shield_respawn: 0.0,
             attack_timer: kind.attack_period(),
@@ -184,7 +190,12 @@ impl Boss {
 
     /// Один шаг босса. `paddle_xs` — X живых ракеток (прицеливание снарядов).
     /// Возвращает (станут ли ракетки слотов, умер ли босс).
-    pub fn step(&mut self, dt: f32, field: &mut Field, paddle_xs: &[(usize, f32)]) -> (Vec<usize>, bool) {
+    pub fn step(
+        &mut self,
+        dt: f32,
+        field: &mut Field,
+        paddle_xs: &[(usize, f32)],
+    ) -> (Vec<usize>, bool) {
         let mut stunned: Vec<usize> = vec![];
         let mut died = false;
         let speed_mult = if self.enraged { 1.6 } else { 1.0 };
@@ -259,7 +270,8 @@ impl Boss {
             let mut dead = p.y > field.h + 20.0;
             if !dead {
                 for (slot, px) in paddle_xs {
-                    if p.y + 6.0 >= paddle_y && p.y - 6.0 <= paddle_y + popproto_core::field::PADDLE_H + 8.0
+                    if p.y + 6.0 >= paddle_y
+                        && p.y - 6.0 <= paddle_y + popproto_core::field::PADDLE_H + 8.0
                         && (p.x - px).abs() <= 70.0
                     {
                         stunned.push(*slot);
@@ -328,7 +340,10 @@ impl Boss {
         }
         self.hp = self.hp.saturating_sub(1);
         self.hit_flash = 0.15;
-        if !self.enraged && self.kind == BossKind::Cube && (self.hp as f32) <= self.max_hp as f32 * ENRAGE_AT {
+        if !self.enraged
+            && self.kind == BossKind::Cube
+            && (self.hp as f32) <= self.max_hp as f32 * ENRAGE_AT
+        {
             self.enraged = true;
         }
         self.hp == 0
@@ -336,6 +351,7 @@ impl Boss {
 }
 
 /// Высота, на которой висит босс; используется при проверках поля.
+#[allow(dead_code)] // зарезервировано: вертикальные границы для будущих боссов
 pub fn boss_ceiling() -> f32 {
     FIELD_H
 }

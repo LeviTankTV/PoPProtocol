@@ -21,30 +21,115 @@ pub const MAX_LIVES: u8 = 3;
 /// Уровни popblocks; 'x' — камень, '.' — пусто, '1'..'3' — hp.
 pub const LEVELS: [&[&str]; 15] = [
     &["2222222222", "1111111111", "2111111112", "1111111111"],
-    &["1.1.1.1.1.", ".2.2.2.2.2", "1.1.1.1.1.", ".2.2.2.2.2", "1.1.1.1.1."],
-    &["....11....", "...1221...", "..122221..", ".12233221.", "1223333221"],
-    &["1111111111", "2xx2222xx2", "1111111111", "222xxxxx22", "1111111111"],
-    &["3333333333", "3222222223", "3211111123", "3211111123", "3222222223", "3333333333"],
+    &[
+        "1.1.1.1.1.",
+        ".2.2.2.2.2",
+        "1.1.1.1.1.",
+        ".2.2.2.2.2",
+        "1.1.1.1.1.",
+    ],
+    &[
+        "....11....",
+        "...1221...",
+        "..122221..",
+        ".12233221.",
+        "1223333221",
+    ],
+    &[
+        "1111111111",
+        "2xx2222xx2",
+        "1111111111",
+        "222xxxxx22",
+        "1111111111",
+    ],
+    &[
+        "3333333333",
+        "3222222223",
+        "3211111123",
+        "3211111123",
+        "3222222223",
+        "3333333333",
+    ],
     // 6. Шахматка с каменным ядром
-    &["2.2.2.2.2.", ".1x1x1x1.1", "2.2.2.2.2.", ".1.1.1.1.1", "2.2.2.2.2."],
+    &[
+        "2.2.2.2.2.",
+        ".1x1x1x1.1",
+        "2.2.2.2.2.",
+        ".1.1.1.1.1",
+        "2.2.2.2.2.",
+    ],
     // 7. Крепость: стены и бастионы
-    &["x22222222x", "2........2", "2.333333.2", "2........2", "x11111111x"],
+    &[
+        "x22222222x",
+        "2........2",
+        "2.333333.2",
+        "2........2",
+        "x11111111x",
+    ],
     // 8. Молния
-    &["1111.11111", ".222.222..", "..3333....", ".222.222..", "1111.11111"],
+    &[
+        "1111.11111",
+        ".222.222..",
+        "..3333....",
+        ".222.222..",
+        "1111.11111",
+    ],
     // 9. Двойная арка
-    &["..333333..", ".32222223.", "3221111223", ".32222223.", "..111111.."],
+    &[
+        "..333333..",
+        ".32222223.",
+        "3221111223",
+        ".32222223.",
+        "..111111..",
+    ],
     // 10. Соты
-    &["1.2.3.2.1.", ".2.3.3.2.2", "1.2.3.2.1.", ".2.3.3.2.2", "1.2.3.2.1."],
+    &[
+        "1.2.3.2.1.",
+        ".2.3.3.2.2",
+        "1.2.3.2.1.",
+        ".2.3.3.2.2",
+        "1.2.3.2.1.",
+    ],
     // 11. Волна
-    &["11..11..11", "2211..1122", "..223322..", "2211..1122", "11..11..11"],
+    &[
+        "11..11..11",
+        "2211..1122",
+        "..223322..",
+        "2211..1122",
+        "11..11..11",
+    ],
     // 12. Крест-накрест с камнями
-    &["333x33x333", "2..2.2..2.", "1111.1111.", "2..2.2..2.", "333x33x333"],
+    &[
+        "333x33x333",
+        "2..2.2..2.",
+        "1111.1111.",
+        "2..2.2..2.",
+        "333x33x333",
+    ],
     // 13. Пирамида вниз
-    &["3333333333", ".x222222x.", "..111111..", "...2222...", "....11...."],
+    &[
+        "3333333333",
+        ".x222222x.",
+        "..111111..",
+        "...2222...",
+        "....11....",
+    ],
     // 14. Решётка
-    &["3.3.3.3.3.", "2222222222", "3.3.3.3.3.", "1111111111", "3.3.3.3.3."],
+    &[
+        "3.3.3.3.3.",
+        "2222222222",
+        "3.3.3.3.3.",
+        "1111111111",
+        "3.3.3.3.3.",
+    ],
     // 15. Финал: стена с бронёй (после неё — победа)
-    &["xx333333xx", "3332233223", "2221111222", "3332233223", "xx111111xx"],
+    &[
+        "xx333333xx",
+        "3332233223",
+        "2221111222",
+        "3332233223",
+        "xx111111xx",
+    ],
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,8 +241,18 @@ impl Field {
                 let id = self.next_brick_id;
                 self.next_brick_id += 1;
                 let stone = ch == 'x';
-                let hp = if stone { 255 } else { ch.to_digit(10).unwrap_or(1) as u8 };
-                let brick = Brick { id, c: c as u8, r: r as u8, hp, stone };
+                let hp = if stone {
+                    255
+                } else {
+                    ch.to_digit(10).unwrap_or(1) as u8
+                };
+                let brick = Brick {
+                    id,
+                    c: c as u8,
+                    r: r as u8,
+                    hp,
+                    stone,
+                };
                 self.grid[r * COLS + c] = Some(id);
                 self.bricks.push(brick);
             }
@@ -176,7 +271,14 @@ impl Field {
     pub fn add_ball(&mut self, owner: u32, x: f32, y: f32) -> u16 {
         let id = self.next_ball_id;
         self.next_ball_id += 1;
-        self.balls.push(Ball { id, owner, x, y, vx: 0.0, vy: 0.0 });
+        self.balls.push(Ball {
+            id,
+            owner,
+            x,
+            y,
+            vx: 0.0,
+            vy: 0.0,
+        });
         id
     }
 
@@ -206,7 +308,13 @@ impl Field {
         }
         let id = self.next_brick_id;
         self.next_brick_id += 1;
-        let brick = Brick { id, c: c as u8, r: r as u8, hp: if stone { 255 } else { hp }, stone };
+        let brick = Brick {
+            id,
+            c: c as u8,
+            r: r as u8,
+            hp: if stone { 255 } else { hp },
+            stone,
+        };
         self.grid[r * COLS + c] = Some(id);
         self.bricks.push(brick);
         Some(id)
@@ -311,7 +419,8 @@ impl Field {
                         continue;
                     }
                     let py = self.h - 42.0;
-                    if ball.y + BALL_R >= py && ball.y + BALL_R <= py + PADDLE_H + 10.0
+                    if ball.y + BALL_R >= py
+                        && ball.y + BALL_R <= py + PADDLE_H + 10.0
                         && (ball.x - p.x).abs() <= p.w / 2.0 + BALL_R
                     {
                         let off = ((ball.x - p.x) / (p.w / 2.0)).clamp(-1.0, 1.0);
@@ -355,7 +464,7 @@ impl Field {
         }
 
         // пули лазера: летят вверх, бьют первый кирпич в своей ячейке
-        let mut bullets = std::mem::take(&mut self.bullets);
+        let bullets = std::mem::take(&mut self.bullets);
         let mut survivors = Vec::with_capacity(bullets.len());
         for mut u in bullets {
             u.y -= 700.0 * dt;
@@ -384,7 +493,9 @@ impl Field {
 
     /// Выстрел лазера из краёв ракетки слота.
     pub fn fire_laser(&mut self, owner: u32, slot: usize) {
-        let Some(p) = self.paddles.get(slot) else { return };
+        let Some(p) = self.paddles.get(slot) else {
+            return;
+        };
         if !p.alive {
             return;
         }
@@ -392,25 +503,50 @@ impl Field {
         for dx in [-8.0, 8.0] {
             let id = self.next_bullet_id;
             self.next_bullet_id += 1;
-            self.bullets.push(Bullet { id, owner, x: p.x + dx, y });
+            self.bullets.push(Bullet {
+                id,
+                owner,
+                x: p.x + dx,
+                y,
+            });
         }
     }
 
     /// Общий урон кирпича (мяч или пуля): hp-1, событие, удаление при 0.
     fn damage_brick(&mut self, c: usize, r: usize, owner: u32, res: &mut StepResult) {
-        let Some(brick) = self.brick_at(c, r) else { return };
+        let Some(brick) = self.brick_at(c, r) else {
+            return;
+        };
         let (brick_id, stone) = (brick.id, brick.stone);
         if stone {
-            res.brick_events.push(BrickEvent { brick_id, c: c as u8, r: r as u8, owner, destroyed: false });
+            res.brick_events.push(BrickEvent {
+                brick_id,
+                c: c as u8,
+                r: r as u8,
+                owner,
+                destroyed: false,
+            });
             return;
         }
         if let Some(b) = self.bricks.iter_mut().find(|b| b.id == brick_id) {
             b.hp -= 1;
             if b.hp == 0 {
-                res.brick_events.push(BrickEvent { brick_id, c: c as u8, r: r as u8, owner, destroyed: true });
+                res.brick_events.push(BrickEvent {
+                    brick_id,
+                    c: c as u8,
+                    r: r as u8,
+                    owner,
+                    destroyed: true,
+                });
                 self.remove_brick(brick_id);
             } else {
-                res.brick_events.push(BrickEvent { brick_id, c: c as u8, r: r as u8, owner, destroyed: false });
+                res.brick_events.push(BrickEvent {
+                    brick_id,
+                    c: c as u8,
+                    r: r as u8,
+                    owner,
+                    destroyed: false,
+                });
             }
         }
     }
@@ -528,7 +664,11 @@ mod tests {
             b.vy = -BASE_SPEED;
         }
         let res = f.step(1.0 / 30.0);
-        let ev = res.brick_events.iter().find(|e| e.c == 0 && e.r == 0).expect("событие по кирпичу (0,0)");
+        let ev = res
+            .brick_events
+            .iter()
+            .find(|e| e.c == 0 && e.r == 0)
+            .expect("событие по кирпичу (0,0)");
         // кирпич с hp 2: первый удар только треснул
         assert!(!ev.destroyed);
         assert_eq!(ev.owner, 7);
@@ -596,12 +736,26 @@ mod level_tests {
     fn fifteen_wellformed_levels() {
         assert_eq!(LEVELS.len(), 15, "15 рукотворных уровней");
         for (i, rows) in LEVELS.iter().enumerate() {
-            assert!((1..=8).contains(&rows.len()), "уровень {}: строк 1-8, а {}", i + 1, rows.len());
+            assert!(
+                (1..=8).contains(&rows.len()),
+                "уровень {}: строк 1-8, а {}",
+                i + 1,
+                rows.len()
+            );
             for row in rows.iter() {
-                assert_eq!(row.chars().count(), COLS, "уровень {}: строка '{}' не {}", i + 1, row, COLS);
+                assert_eq!(
+                    row.chars().count(),
+                    COLS,
+                    "уровень {}: строка '{}' не {}",
+                    i + 1,
+                    row,
+                    COLS
+                );
                 assert!(
                     row.chars().all(|c| matches!(c, '1'..='3' | 'x' | '.')),
-                    "уровень {}: недопустимый символ в '{}'", i + 1, row
+                    "уровень {}: недопустимый символ в '{}'",
+                    i + 1,
+                    row
                 );
             }
         }

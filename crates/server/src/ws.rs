@@ -19,30 +19,53 @@ pub async fn upgrade(State(state): State<AppState>, ws: WebSocketUpgrade) -> Res
 }
 
 async fn send_msg(sink: &mut SplitSink<WebSocket, Message>, msg: &ServerMsg) -> bool {
-    sink.send(Message::Binary(popproto_core::encode(msg).into())).await.is_ok()
+    sink.send(Message::Binary(popproto_core::encode(msg).into()))
+        .await
+        .is_ok()
 }
 
 async fn send_err(sink: &mut SplitSink<WebSocket, Message>, code: ErrCode, text: &str) {
-    let _ = send_msg(sink, &ServerMsg::Error { code, text: text.to_string() }).await;
+    let _ = send_msg(
+        sink,
+        &ServerMsg::Error {
+            code,
+            text: text.to_string(),
+        },
+    )
+    .await;
 }
 
 /// Рукопожатие: первый кадр должен быть Hello с совпадающей версией протокола.
 /// Возвращает запись игрока и поток чтения.
 async fn handshake(
-    mut socket: WebSocket,
+    socket: WebSocket,
     state: &AppState,
-) -> Option<(PlayerRecord, SplitStream<WebSocket>, SplitSink<WebSocket, Message>)> {
+) -> Option<(
+    PlayerRecord,
+    SplitStream<WebSocket>,
+    SplitSink<WebSocket, Message>,
+)> {
     let (mut sink, mut stream) = socket.split();
 
-    let first = tokio::time::timeout(std::time::Duration::from_secs(10), stream.next()).await.ok()??;
+    let first = tokio::time::timeout(std::time::Duration::from_secs(10), stream.next())
+        .await
+        .ok()??;
     let bytes = match first.ok()? {
         Message::Binary(b) => b,
         _ => return None,
     };
-    let Some(ClientMsg::Hello { protocol, name, token }) =
-        popproto_core::decode::<ClientMsg>(&bytes)
+    let Some(ClientMsg::Hello {
+        protocol,
+        name,
+        token,
+    }) = popproto_core::decode::<ClientMsg>(&bytes)
     else {
-        send_err(&mut sink, ErrCode::InvalidInput, "первый пакет должен быть Hello").await;
+        send_err(
+            &mut sink,
+            ErrCode::InvalidInput,
+            "первый пакет должен быть Hello",
+        )
+        .await;
         return None;
     };
     if protocol != PROTOCOL_VERSION {
@@ -57,11 +80,16 @@ async fn handshake(
 
     match state.store.resolve_player(&name, token.as_deref()).await {
         Ok(record) => {
-            if send_msg(&mut sink, &ServerMsg::Welcome {
-                player_id: record.player_id,
-                token: record.token.clone(),
-                name: record.name.clone(),
-            }).await {
+            if send_msg(
+                &mut sink,
+                &ServerMsg::Welcome {
+                    player_id: record.player_id,
+                    token: record.token.clone(),
+                    name: record.name.clone(),
+                },
+            )
+            .await
+            {
                 tracing::info!("игрок «{}» вошёл (id {})", record.name, record.player_id);
                 Some((record, stream, sink))
             } else {
@@ -90,9 +118,13 @@ fn store_error(e: &StoreError) -> (ErrCode, &'static str) {
 
 /// Живёт всё соединение: читает ClientMsg, пишет ServerMsg через прямой канал.
 async fn run_session(socket: WebSocket, state: AppState) {
-    state.ws_clients.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    state
+        .ws_clients
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let Some((record, mut stream, mut sink)) = handshake(socket, &state).await else {
-        state.ws_clients.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        state
+            .ws_clients
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         return;
     };
 
@@ -103,7 +135,11 @@ async fn run_session(socket: WebSocket, state: AppState) {
 
     let writer = tokio::spawn(async move {
         while let Some(msg) = direct_rx.recv().await {
-            if sink.send(Message::Binary(popproto_core::encode(&msg).into())).await.is_err() {
+            if sink
+                .send(Message::Binary(popproto_core::encode(&msg).into()))
+                .await
+                .is_err()
+            {
                 break;
             }
         }
@@ -115,10 +151,24 @@ async fn run_session(socket: WebSocket, state: AppState) {
             Message::Text(_) | Message::Pong(_) => continue,
             Message::Close(_) => break,
             // Браузерные пинги tungstenite отвечает сам; на всякий случай:
-            Message::Ping(p) => { let _ = p; continue; }
+            Message::Ping(p) => {
+                let _ = p;
+                continue;
+            }
         };
-        let Some(msg) = popproto_core::decode::<ClientMsg>(&bytes) else { continue };
-        match dispatch(&state, &record, msg, &direct_tx, &mut room_id, &mut forwarder).await {
+        let Some(msg) = popproto_core::decode::<ClientMsg>(&bytes) else {
+            continue;
+        };
+        match dispatch(
+            &state,
+            &record,
+            msg,
+            &direct_tx,
+            &mut room_id,
+            &mut forwarder,
+        )
+        .await
+        {
             Ok(()) => {}
             Err((code, text)) => {
                 if direct_tx.send(ServerMsg::Error { code, text }).is_err() {
@@ -137,7 +187,9 @@ async fn run_session(socket: WebSocket, state: AppState) {
     }
     drop(direct_tx);
     let _ = writer.await;
-    state.ws_clients.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    state
+        .ws_clients
+        .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 type DispatchErr = (ErrCode, String);
@@ -152,20 +204,35 @@ async fn dispatch(
 ) -> Result<(), DispatchErr> {
     match msg {
         ClientMsg::Ping(n) => {
-            direct_tx.send(ServerMsg::Pong(n)).map_err(|_| (ErrCode::InvalidInput, "соединение закрыто".into()))?;
+            direct_tx
+                .send(ServerMsg::Pong(n))
+                .map_err(|_| (ErrCode::InvalidInput, "соединение закрыто".into()))?;
         }
         ClientMsg::RequestRoomList => {
             let list = state.lobby.room_list().await;
             direct_tx.send(ServerMsg::RoomList(list)).map_err(choked)?;
         }
-        ClientMsg::CreateRoom { name, password, mode, settings } => {
-            let op: BoxFuture<'_, Result<u32, crate::lobby::LobbyError>> =
-                Box::pin(async { state.lobby.create_room(record, name, password, mode, settings).await });
+        ClientMsg::CreateRoom {
+            name,
+            password,
+            mode,
+            settings,
+        } => {
+            let op: BoxFuture<'_, Result<u32, crate::lobby::LobbyError>> = Box::pin(async {
+                state
+                    .lobby
+                    .create_room(record, name, password, mode, settings)
+                    .await
+            });
             attach(state, record, direct_tx, room_id, forwarder, op).await?;
         }
         ClientMsg::JoinRoom { code, password } => {
             let op: BoxFuture<'_, Result<u32, crate::lobby::LobbyError>> = Box::pin(async {
-                state.lobby.join_room(record, &code, password.as_deref()).await.map(|j| j.room_id)
+                state
+                    .lobby
+                    .join_room(record, &code, password.as_deref())
+                    .await
+                    .map(|j| j.room_id)
             });
             attach(state, record, direct_tx, room_id, forwarder, op).await?;
         }
@@ -181,20 +248,35 @@ async fn dispatch(
         }
         ClientMsg::SetReady(ready) => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            state.lobby.set_ready(record.player_id, rid, ready).await.map_err(lobby)?;
+            state
+                .lobby
+                .set_ready(record.player_id, rid, ready)
+                .await
+                .map_err(lobby)?;
         }
         ClientMsg::StartMatch => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            state.lobby.start_match(record.player_id, rid).await.map_err(lobby)?;
+            state
+                .lobby
+                .start_match(record.player_id, rid)
+                .await
+                .map_err(lobby)?;
             // Игровой цикл матча подключается на шагах 7–8.
         }
         ClientMsg::Kick { player_id } => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            state.lobby.kick(record.player_id, rid, player_id).await.map_err(lobby)?;
+            state
+                .lobby
+                .kick(record.player_id, rid, player_id)
+                .await
+                .map_err(lobby)?;
         }
         ClientMsg::Chat { text } => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            let in_lobby_phase = state.lobby.room_state(rid).await
+            let in_lobby_phase = state
+                .lobby
+                .room_state(rid)
+                .await
                 .map(|s| s.phase == popproto_core::RoomPhase::Lobby)
                 .unwrap_or(false);
             if !in_lobby_phase {
@@ -204,37 +286,82 @@ async fn dispatch(
             if text.is_empty() {
                 return Err((ErrCode::InvalidInput, "пустое сообщение".into()));
             }
-            broadcast_to(state, rid, ServerMsg::Chat { player_id: record.player_id, text }).await?;
+            broadcast_to(
+                state,
+                rid,
+                ServerMsg::Chat {
+                    player_id: record.player_id,
+                    text,
+                },
+            )
+            .await?;
         }
         ClientMsg::Emote { emote } => {
             if emote > 9 {
                 return Err((ErrCode::InvalidInput, "нет такой эмоции".into()));
             }
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            broadcast_to(state, rid, ServerMsg::Emote { player_id: record.player_id, emote }).await?;
+            broadcast_to(
+                state,
+                rid,
+                ServerMsg::Emote {
+                    player_id: record.player_id,
+                    emote,
+                },
+            )
+            .await?;
         }
         // Управление матчем: команды уходят в игровой цикл комнаты.
         ClientMsg::PaddleX(x) => {
             if let Some(rid) = room_id {
-                state.lobby.game_cmd(*rid, GameCmd::PaddleX { player_id: record.player_id, x }).await;
+                state
+                    .lobby
+                    .game_cmd(
+                        *rid,
+                        GameCmd::PaddleX {
+                            player_id: record.player_id,
+                            x,
+                        },
+                    )
+                    .await;
             }
         }
         ClientMsg::Action => {
             if let Some(rid) = room_id {
-                state.lobby.game_cmd(*rid, GameCmd::Action { player_id: record.player_id }).await;
+                state
+                    .lobby
+                    .game_cmd(
+                        *rid,
+                        GameCmd::Action {
+                            player_id: record.player_id,
+                        },
+                    )
+                    .await;
             }
         }
         ClientMsg::AddBot { level } => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            state.lobby.add_bot(record.player_id, rid, level).await.map_err(lobby)?;
+            state
+                .lobby
+                .add_bot(record.player_id, rid, level)
+                .await
+                .map_err(lobby)?;
         }
         ClientMsg::SetColor { color } => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            state.lobby.set_color(record.player_id, rid, color).await.map_err(lobby)?
+            state
+                .lobby
+                .set_color(record.player_id, rid, color)
+                .await
+                .map_err(lobby)?
         }
         ClientMsg::RemoveBot { player_id } => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            state.lobby.remove_bot(record.player_id, rid, player_id).await.map_err(lobby)?;
+            state
+                .lobby
+                .remove_bot(record.player_id, rid, player_id)
+                .await
+                .map_err(lobby)?;
         }
         ClientMsg::Hello { .. } => {}
     }
@@ -254,34 +381,36 @@ async fn attach(
     // Уже в другой комнате — сначала выходим.
     if let Some(old) = room_id.take() {
         state.lobby.leave_room(record.player_id, old).await;
-        if let Some(f) = forwarder.take() { f.abort(); }
+        if let Some(f) = forwarder.take() {
+            f.abort();
+        }
     }
     let new_id = op.await.map_err(lobby)?;
-    let mut rx = state.lobby.subscribe(new_id).await.ok_or_else(|| (ErrCode::RoomNotFound, "комната исчезла".into()))?;
+    let mut rx = state
+        .lobby
+        .subscribe(new_id)
+        .await
+        .ok_or_else(|| (ErrCode::RoomNotFound, "комната исчезла".into()))?;
     let tx = direct_tx.clone();
     *forwarder = Some(tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
-            if tx.send(msg).is_err() { break; }
+            if tx.send(msg).is_err() {
+                break;
+            }
         }
     }));
     *room_id = Some(new_id);
     let state_msg = state.lobby.room_state(new_id).await;
     if let Some(s) = state_msg {
-        direct_tx.send(ServerMsg::RoomState(Box::new(s))).map_err(choked)?;
+        direct_tx
+            .send(ServerMsg::RoomState(Box::new(s)))
+            .map_err(choked)?;
     }
     Ok(())
 }
 
-async fn broadcast_to(
-    state: &AppState,
-    room_id: u32,
-    msg: ServerMsg,
-) -> Result<(), DispatchErr> {
-    state
-        .lobby
-        .broadcast_raw(room_id, msg)
-        .await
-        .map_err(lobby)
+async fn broadcast_to(state: &AppState, room_id: u32, msg: ServerMsg) -> Result<(), DispatchErr> {
+    state.lobby.broadcast_raw(room_id, msg).await.map_err(lobby)
 }
 
 fn choked(_: mpsc::error::SendError<ServerMsg>) -> DispatchErr {

@@ -40,7 +40,10 @@ fn get_u32(doc: &Document, key: &str) -> Option<u32> {
 }
 
 fn now_millis() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// Ник: после обрезки пробелов 1–16 символов, не только цифры-пробелы.
@@ -50,7 +53,11 @@ pub fn validate_name(name: &str) -> Result<String, StoreError> {
         && trimmed.chars().count() <= 16
         && trimmed.chars().any(|c| !c.is_whitespace())
         && !trimmed.chars().any(|c| c.is_control());
-    if ok { Ok(trimmed.to_string()) } else { Err(StoreError::InvalidName) }
+    if ok {
+        Ok(trimmed.to_string())
+    } else {
+        Err(StoreError::InvalidName)
+    }
 }
 
 fn new_token() -> String {
@@ -73,7 +80,11 @@ impl Store {
     }
 
     /// Найти или создать игрока по нику и токену.
-    pub async fn resolve_player(&self, name: &str, token: Option<&str>) -> Result<PlayerRecord, StoreError> {
+    pub async fn resolve_player(
+        &self,
+        name: &str,
+        token: Option<&str>,
+    ) -> Result<PlayerRecord, StoreError> {
         match self {
             Store::Memory(s) => s.resolve_player(name, token).await,
             Store::Mongo(s) => s.resolve_player(name, token).await,
@@ -135,9 +146,12 @@ impl MemoryStore {
         let mut list: Vec<LeaderEntry> = inner
             .players
             .values()
-            .map(|r| LeaderEntry { name: r.name.clone(), xp: r.xp })
+            .map(|r| LeaderEntry {
+                name: r.name.clone(),
+                xp: r.xp,
+            })
             .collect();
-        list.sort_by(|a, b| b.xp.cmp(&a.xp));
+        list.sort_by_key(|r| std::cmp::Reverse(r.xp));
         list.truncate(limit);
         list
     }
@@ -148,7 +162,11 @@ impl MemoryStore {
         Self::default()
     }
 
-    async fn resolve_player(&self, name: &str, token: Option<&str>) -> Result<PlayerRecord, StoreError> {
+    async fn resolve_player(
+        &self,
+        name: &str,
+        token: Option<&str>,
+    ) -> Result<PlayerRecord, StoreError> {
         let name = validate_name(name)?;
         let mut inner = self.inner.lock().await;
 
@@ -156,7 +174,11 @@ impl MemoryStore {
             let Some(&player_id) = inner.tokens.get(token) else {
                 return Err(StoreError::BadToken);
             };
-            let mut rec = inner.players.get(&player_id).cloned().expect("token -> player invariant");
+            let mut rec = inner
+                .players
+                .get(&player_id)
+                .cloned()
+                .expect("token -> player invariant");
             if rec.name != name {
                 // Смена ника: освободить старый, занять новый, если свободен.
                 if inner.names.contains_key(&name) {
@@ -176,7 +198,12 @@ impl MemoryStore {
         let player_id = inner.next_id;
         inner.next_id += 1;
         let token = new_token();
-        let rec = PlayerRecord { player_id, name: name.clone(), token: token.clone(), xp: 0 };
+        let rec = PlayerRecord {
+            player_id,
+            name: name.clone(),
+            token: token.clone(),
+            xp: 0,
+        };
         inner.players.insert(player_id, rec.clone());
         inner.tokens.insert(token, player_id);
         inner.names.insert(name, player_id);
@@ -196,14 +223,22 @@ impl MongoStore {
     /// Подключение с проверкой живости (ping) и созданием индексов.
     pub async fn connect(url: &str, db_name: &str) -> Result<Self, mongodb::error::Error> {
         let client = Client::with_uri_str(url).await?;
-        client.database(db_name).run_command(doc! { "ping": 1 }).await?;
+        client
+            .database(db_name)
+            .run_command(doc! { "ping": 1 })
+            .await?;
         let db = client.database(db_name);
         let players = db.collection("players");
         let sessions = db.collection("sessions");
 
         let name_opts = IndexOptions::builder().unique(true).build();
         players
-            .create_index(IndexModel::builder().keys(doc! { "name": 1 }).options(name_opts).build())
+            .create_index(
+                IndexModel::builder()
+                    .keys(doc! { "name": 1 })
+                    .options(name_opts)
+                    .build(),
+            )
             .await?;
         sessions
             .create_index(IndexModel::builder().keys(doc! { "token": 1 }).build())
@@ -259,7 +294,11 @@ impl MongoStore {
             .map_err(|e| StoreError::Backend(e.to_string()))
     }
 
-    async fn resolve_player(&self, name: &str, token: Option<&str>) -> Result<PlayerRecord, StoreError> {
+    async fn resolve_player(
+        &self,
+        name: &str,
+        token: Option<&str>,
+    ) -> Result<PlayerRecord, StoreError> {
         let name = validate_name(name)?;
 
         if let Some(token) = token {
@@ -269,28 +308,37 @@ impl MongoStore {
                 .await
                 .map_err(|e| StoreError::Backend(e.to_string()))?
                 .ok_or(StoreError::BadToken)?;
-            let player_id = get_u32(&session, "player_id").ok_or_else(|| StoreError::Backend("session.player_id: bad type".into()))?;
+            let player_id = get_u32(&session, "player_id")
+                .ok_or_else(|| StoreError::Backend("session.player_id: bad type".into()))?;
             let player = self
                 .player_doc(player_id)
                 .await?
                 .ok_or(StoreError::BadToken)?;
-            let current_name: String = player.get_str("name").map_err(|e| StoreError::Backend(e.to_string()))?.into();
+            let current_name: String = player
+                .get_str("name")
+                .map_err(|e| StoreError::Backend(e.to_string()))?
+                .into();
             if current_name != name {
                 // Смена ника: имя должно быть свободно.
-                let taken = self
-                    .player_doc_named(&name)
-                    .await?
-                    .is_some();
+                let taken = self.player_doc_named(&name).await?.is_some();
                 if taken {
                     return Err(StoreError::NameTaken);
                 }
                 self.players
-                    .update_one(doc! { "_id": player_id }, doc! { "$set": { "name": &name } })
+                    .update_one(
+                        doc! { "_id": player_id },
+                        doc! { "$set": { "name": &name } },
+                    )
                     .await
                     .map_err(|e| StoreError::Backend(e.to_string()))?;
             }
             let xp = get_u32(&player, "xp").unwrap_or(0);
-            return Ok(PlayerRecord { player_id, name, token: token.to_string(), xp });
+            return Ok(PlayerRecord {
+                player_id,
+                name,
+                token: token.to_string(),
+                xp,
+            });
         }
 
         // Новый гость: ник должен быть свободен.
@@ -299,7 +347,12 @@ impl MongoStore {
         }
         let player_id = self.random_player_id().await?;
         let token = new_token();
-        let rec = PlayerRecord { player_id, name, token, xp: 0 };
+        let rec = PlayerRecord {
+            player_id,
+            name,
+            token,
+            xp: 0,
+        };
         self.insert_player(&rec).await?;
         Ok(rec)
     }
@@ -351,7 +404,12 @@ impl MongoStore {
 /// URL берётся из MONGO_URL (по умолчанию локальный mongod).
 pub async fn connect_store() -> Store {
     let url = std::env::var("MONGO_URL").unwrap_or_else(|_| "mongodb://localhost:27017".into());
-    match tokio::time::timeout(std::time::Duration::from_secs(4), MongoStore::connect(&url, "pop_protocol")).await {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(4),
+        MongoStore::connect(&url, "pop_protocol"),
+    )
+    .await
+    {
         Ok(Ok(store)) => {
             tracing::info!("MongoDB подключена: {url}, база pop_protocol");
             Store::Mongo(store)
@@ -383,7 +441,10 @@ mod tests {
     async fn memory_token_restores_player() {
         let store = MemoryStore::new();
         let first = store.resolve_player("Тима", None).await.unwrap();
-        let again = store.resolve_player("Тима", Some(&first.token)).await.unwrap();
+        let again = store
+            .resolve_player("Тима", Some(&first.token))
+            .await
+            .unwrap();
         assert_eq!(first.player_id, again.player_id);
     }
 
@@ -391,14 +452,20 @@ mod tests {
     async fn memory_name_taken_without_token() {
         let store = MemoryStore::new();
         store.resolve_player("Тима", None).await.unwrap();
-        assert_eq!(store.resolve_player("Тима", None).await, Err(StoreError::NameTaken));
+        assert_eq!(
+            store.resolve_player("Тима", None).await,
+            Err(StoreError::NameTaken)
+        );
     }
 
     #[tokio::test]
     async fn memory_rename_with_token() {
         let store = MemoryStore::new();
         let first = store.resolve_player("Тима", None).await.unwrap();
-        let renamed = store.resolve_player("Пума", Some(&first.token)).await.unwrap();
+        let renamed = store
+            .resolve_player("Пума", Some(&first.token))
+            .await
+            .unwrap();
         assert_eq!(renamed.player_id, first.player_id);
         assert_eq!(renamed.name, "Пума");
         // Старое имя освободилось.
@@ -408,10 +475,19 @@ mod tests {
     #[tokio::test]
     async fn memory_invalid_names() {
         let store = MemoryStore::new();
-        assert_eq!(store.resolve_player("   ", None).await, Err(StoreError::InvalidName));
-        assert_eq!(store.resolve_player("", None).await, Err(StoreError::InvalidName));
+        assert_eq!(
+            store.resolve_player("   ", None).await,
+            Err(StoreError::InvalidName)
+        );
+        assert_eq!(
+            store.resolve_player("", None).await,
+            Err(StoreError::InvalidName)
+        );
         let long = "ш".repeat(17);
-        assert_eq!(store.resolve_player(&long, None).await, Err(StoreError::InvalidName));
+        assert_eq!(
+            store.resolve_player(&long, None).await,
+            Err(StoreError::InvalidName)
+        );
     }
 
     #[tokio::test]
@@ -458,6 +534,9 @@ mod tests {
         let rec = store.resolve_player(&name, None).await.unwrap();
         let again = store.resolve_player(&name, Some(&rec.token)).await.unwrap();
         assert_eq!(rec.player_id, again.player_id);
-        assert_eq!(store.resolve_player(&name, None).await, Err(StoreError::NameTaken));
+        assert_eq!(
+            store.resolve_player(&name, None).await,
+            Err(StoreError::NameTaken)
+        );
     }
 }

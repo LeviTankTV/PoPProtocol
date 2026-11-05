@@ -8,11 +8,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use popproto_core::{
-    GameMode, PlayerInfo, RoomPhase, RoomSettings, RoomState, RoomSummary, ServerMsg, ErrCode,
-    BotLevel, MAX_PLAYERS, MAX_SPECTATORS, RECONNECT_WINDOW_SECS, BOT_ID_BASE,
+    BotLevel, ErrCode, GameMode, PlayerInfo, RoomPhase, RoomSettings, RoomState, RoomSummary,
+    ServerMsg, BOT_ID_BASE, MAX_PLAYERS, MAX_SPECTATORS, RECONNECT_WINDOW_SECS,
 };
 use tokio::sync::{broadcast, mpsc, Mutex};
-
 
 use crate::game::{self, GameCmd};
 use crate::store::{PlayerRecord, Store};
@@ -72,6 +71,7 @@ impl Room {
         self.broadcast(ServerMsg::RoomState(Box::new(self.state())));
     }
 
+    #[allow(dead_code)] // зарезервировано: профиль игрока в REST
     fn info_of(&self, player_id: u32) -> Option<PlayerInfo> {
         self.players
             .iter()
@@ -122,6 +122,7 @@ pub struct Joined {
 }
 
 #[derive(Debug, PartialEq)]
+#[allow(dead_code)] // вариант ошибок бэкенда хранилища
 pub enum LobbyError {
     Code(ErrCode),
     Backend(String),
@@ -150,20 +151,29 @@ pub struct Lobby {
 
 impl Lobby {
     pub fn new(store: Arc<Store>) -> Self {
-        Self { inner: Arc::new(Mutex::new(Inner::default())), store }
+        Self {
+            inner: Arc::new(Mutex::new(Inner::default())),
+            store,
+        }
     }
 
     /// Подписка на события комнаты (RoomState, PlayerJoined, ...).
     pub async fn subscribe(&self, room_id: u32) -> Option<broadcast::Receiver<ServerMsg>> {
-        self.inner.lock().await.rooms.get(&room_id).map(|r| r.tx.subscribe())
+        self.inner
+            .lock()
+            .await
+            .rooms
+            .get(&room_id)
+            .map(|r| r.tx.subscribe())
     }
 
+    #[allow(dead_code)] // зарезервировано: REST-проверки
     pub async fn room_exists(&self, room_id: u32) -> bool {
         self.inner.lock().await.rooms.contains_key(&room_id)
     }
 
     pub async fn room_list(&self) -> Vec<RoomSummary> {
-        let mut inner = self.inner.lock().await;
+        let inner = self.inner.lock().await;
         let mut list: Vec<RoomSummary> = inner.rooms.values().map(|r| r.summary()).collect();
         list.sort_by_key(|s| s.room_id);
         list
@@ -216,7 +226,12 @@ impl Lobby {
 
     /// Текущее состояние комнаты; None если комнаты нет.
     pub async fn room_state(&self, room_id: u32) -> Option<RoomState> {
-        self.inner.lock().await.rooms.get(&room_id).map(|r| r.state())
+        self.inner
+            .lock()
+            .await
+            .rooms
+            .get(&room_id)
+            .map(|r| r.state())
     }
 
     /// Отправить сообщение в канал комнаты без изменения состояния (чат, эмоции).
@@ -230,13 +245,19 @@ impl Lobby {
     /// Передать команду матчу (PaddleX/Action). false — матча нет.
     pub async fn game_cmd(&self, room_id: u32, cmd: GameCmd) -> bool {
         let inner = self.inner.lock().await;
-        inner.games.get(&room_id).map(|tx| tx.send(cmd).is_ok()).unwrap_or(false)
+        inner
+            .games
+            .get(&room_id)
+            .map(|tx| tx.send(cmd).is_ok())
+            .unwrap_or(false)
     }
 
     /// Обрыв соединения: игрок остаётся в слоте на окно реконнекта.
     pub async fn player_disconnected(&self, player_id: u32, room_id: u32) -> bool {
         let mut inner = self.inner.lock().await;
-        let Some(room) = inner.rooms.get_mut(&room_id) else { return false };
+        let Some(room) = inner.rooms.get_mut(&room_id) else {
+            return false;
+        };
         let seat = room
             .players
             .iter_mut()
@@ -245,9 +266,15 @@ impl Lobby {
         match seat {
             Some(seat) if seat.online => {
                 seat.online = false;
-                room.reconnects.insert(player_id, Instant::now() + Duration::from_secs(RECONNECT_WINDOW_SECS));
+                room.reconnects.insert(
+                    player_id,
+                    Instant::now() + Duration::from_secs(RECONNECT_WINDOW_SECS),
+                );
                 room.broadcast_state();
-                tracing::info!("игрок {player_id} отвалился, окно реконнекта {} с", RECONNECT_WINDOW_SECS);
+                tracing::info!(
+                    "игрок {player_id} отвалился, окно реконнекта {} с",
+                    RECONNECT_WINDOW_SECS
+                );
                 true
             }
             _ => true,
@@ -286,7 +313,12 @@ impl Lobby {
     }
 
     /// Хост добавляет бота в свободный слот (только в фазе лобби).
-    pub async fn add_bot(&self, host_id: u32, room_id: u32, level: BotLevel) -> Result<(), LobbyError> {
+    pub async fn add_bot(
+        &self,
+        host_id: u32,
+        room_id: u32,
+        level: BotLevel,
+    ) -> Result<(), LobbyError> {
         let mut inner = self.inner.lock().await;
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         if room.host_id != host_id {
@@ -325,7 +357,12 @@ impl Lobby {
     }
 
     /// Хост убирает бота.
-    pub async fn remove_bot(&self, host_id: u32, room_id: u32, target: u32) -> Result<(), LobbyError> {
+    pub async fn remove_bot(
+        &self,
+        host_id: u32,
+        room_id: u32,
+        target: u32,
+    ) -> Result<(), LobbyError> {
         let mut inner = self.inner.lock().await;
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         if room.host_id != host_id {
@@ -348,7 +385,9 @@ impl Lobby {
         {
             let mut inner = self.inner.lock().await;
             inner.games.remove(&room_id);
-            let Some(room) = inner.rooms.get_mut(&room_id) else { return };
+            let Some(room) = inner.rooms.get_mut(&room_id) else {
+                return;
+            };
             room.phase = RoomPhase::Lobby;
             for p in room.players.iter_mut() {
                 p.ready = false;
@@ -385,7 +424,11 @@ impl Lobby {
             .players
             .iter_mut()
             .find(|p| p.id == player.player_id)
-            .or_else(|| room.spectators.iter_mut().find(|p| p.id == player.player_id));
+            .or_else(|| {
+                room.spectators
+                    .iter_mut()
+                    .find(|p| p.id == player.player_id)
+            });
         if let Some(seat) = seat {
             if seat.online {
                 return Err(ErrCode::NotAllowed.into()); // уже в комнате со живым соединением
@@ -413,7 +456,9 @@ impl Lobby {
         }
         // Зритель просится в игроки: переводим, если есть свободный слот.
         if let Some(spec) = room.spectators.iter().find(|p| p.id == player.player_id) {
-            if room.players.len() >= room.settings.max_players as usize || room.phase == RoomPhase::Playing {
+            if room.players.len() >= room.settings.max_players as usize
+                || room.phase == RoomPhase::Playing
+            {
                 return Err(ErrCode::RoomFull.into()); // места нет — остаёшься зрителем
             }
             let mut info = spec.clone();
@@ -426,10 +471,15 @@ impl Lobby {
             let room_id = room.id;
             tracing::info!("зритель {} стал игроком в комнате #{room_id}", player.name);
             room.broadcast_state();
-            return Ok(Joined { room_id, kind: JoinKind::Player });
+            return Ok(Joined {
+                room_id,
+                kind: JoinKind::Player,
+            });
         }
 
-        let kind = if room.phase == RoomPhase::Playing || room.players.len() >= room.settings.max_players as usize {
+        let kind = if room.phase == RoomPhase::Playing
+            || room.players.len() >= room.settings.max_players as usize
+        {
             JoinKind::Spectator
         } else {
             JoinKind::Player
@@ -452,7 +502,12 @@ impl Lobby {
     }
 
     /// Смена цвета игроком: цвет должен быть свободен среди участников комнаты.
-    pub async fn set_color(&self, player_id: u32, room_id: u32, color: u8) -> Result<(), LobbyError> {
+    pub async fn set_color(
+        &self,
+        player_id: u32,
+        room_id: u32,
+        color: u8,
+    ) -> Result<(), LobbyError> {
         let mut inner = self.inner.lock().await;
         let Some(room) = inner.rooms.get_mut(&room_id) else {
             return Err(LobbyError::Code(ErrCode::NotAllowed));
@@ -461,7 +516,10 @@ impl Lobby {
             .players
             .iter()
             .any(|p| p.id != player_id && p.color == color)
-            || room.spectators.iter().any(|p| p.id != player_id && p.color == color);
+            || room
+                .spectators
+                .iter()
+                .any(|p| p.id != player_id && p.color == color);
         if taken {
             return Err(LobbyError::Code(ErrCode::NotAllowed));
         }
@@ -496,7 +554,9 @@ impl Lobby {
         if let Some(tx) = inner.games.get(&room_id) {
             let _ = tx.send(GameCmd::PlayerLeft { player_id });
         }
-        let Some(room) = inner.rooms.get_mut(&room_id) else { return false };
+        let Some(room) = inner.rooms.get_mut(&room_id) else {
+            return false;
+        };
         if !room.remove_member(player_id) {
             return true; // не был участником, но комната жива
         }
@@ -509,13 +569,20 @@ impl Lobby {
         }
         if room.host_id == player_id {
             room.host_id = room.players[0].id;
-            room.broadcast(ServerMsg::HostChanged { player_id: room.host_id });
+            room.broadcast(ServerMsg::HostChanged {
+                player_id: room.host_id,
+            });
         }
         room.broadcast_state();
         true
     }
 
-    pub async fn set_ready(&self, player_id: u32, room_id: u32, ready: bool) -> Result<(), LobbyError> {
+    pub async fn set_ready(
+        &self,
+        player_id: u32,
+        room_id: u32,
+        ready: bool,
+    ) -> Result<(), LobbyError> {
         let mut inner = self.inner.lock().await;
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         let Some(seat) = room.players.iter_mut().find(|p| p.id == player_id) else {
@@ -542,7 +609,11 @@ impl Lobby {
         room.phase = RoomPhase::Playing;
         room.broadcast(ServerMsg::MatchStarted);
         room.broadcast_state();
-        tracing::info!("комната #{}: матч начал ({} игроков)", room.id, room.players.len());
+        tracing::info!(
+            "комната #{}: матч начал ({} игроков)",
+            room.id,
+            room.players.len()
+        );
 
         // Запуск игрового цикла: поле, мячи, снапшоты 30 Гц.
         let players = room
@@ -574,12 +645,18 @@ impl Lobby {
     }
 
     /// Живёт ли игрок в указанной комнате (для очистки при разрыве соединения).
+    #[allow(dead_code)] // зарезервировано: REST-эндпоинты комнаты
     pub async fn member_room(&self, player_id: u32) -> Option<u32> {
         let inner = self.inner.lock().await;
         inner
             .rooms
             .values()
-            .find(|r| r.players.iter().chain(&r.spectators).any(|p| p.id == player_id))
+            .find(|r| {
+                r.players
+                    .iter()
+                    .chain(&r.spectators)
+                    .any(|p| p.id == player_id)
+            })
             .map(|r| r.id)
     }
 }
@@ -594,7 +671,12 @@ mod tests {
     }
 
     fn rec(id: u32, name: &str) -> PlayerRecord {
-        PlayerRecord { player_id: id, name: name.into(), token: format!("tok{id}"), xp: 0 }
+        PlayerRecord {
+            player_id: id,
+            name: name.into(),
+            token: format!("tok{id}"),
+            xp: 0,
+        }
     }
 
     /// Вытянуть все сообщения из подписки без ожидания.
@@ -609,7 +691,16 @@ mod tests {
     #[tokio::test]
     async fn create_and_list() {
         let lobby = test_lobby();
-        let id = lobby.create_room(&rec(1, "Тима"), "Комната".into(), None, GameMode::Coop, RoomSettings::default()).await.unwrap();
+        let id = lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "Комната".into(),
+                None,
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
         let list = lobby.room_list().await;
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].room_id, id);
@@ -621,62 +712,143 @@ mod tests {
     #[tokio::test]
     async fn join_password_flow() {
         let lobby = test_lobby();
-        lobby.create_room(&rec(1, "Тима"), "Секрет".into(), Some("1234".into()), GameMode::Coop, RoomSettings::default()).await.unwrap();
+        lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "Секрет".into(),
+                Some("1234".into()),
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
         let code = lobby.room_list().await[0].code.clone();
 
-        assert_eq!(lobby.join_room(&rec(2, "Боб"), &code, None).await, Err(LobbyError::Code(ErrCode::WrongPassword)));
-        assert_eq!(lobby.join_room(&rec(2, "Боб"), "000000", Some("1234")).await, Err(LobbyError::Code(ErrCode::RoomNotFound)));
-        let joined = lobby.join_room(&rec(2, "Боб"), &code, Some("1234")).await.unwrap();
+        assert_eq!(
+            lobby.join_room(&rec(2, "Боб"), &code, None).await,
+            Err(LobbyError::Code(ErrCode::WrongPassword))
+        );
+        assert_eq!(
+            lobby
+                .join_room(&rec(2, "Боб"), "000000", Some("1234"))
+                .await,
+            Err(LobbyError::Code(ErrCode::RoomNotFound))
+        );
+        let joined = lobby
+            .join_room(&rec(2, "Боб"), &code, Some("1234"))
+            .await
+            .unwrap();
         assert_eq!(joined.kind, JoinKind::Player);
         // Повторный вход тем же игроком запрещён.
-        assert_eq!(lobby.join_room(&rec(2, "Боб"), &code, Some("1234")).await, Err(LobbyError::Code(ErrCode::NotAllowed)));
+        assert_eq!(
+            lobby.join_room(&rec(2, "Боб"), &code, Some("1234")).await,
+            Err(LobbyError::Code(ErrCode::NotAllowed))
+        );
     }
 
     #[tokio::test]
     async fn overflow_becomes_spectator_then_full() {
         let lobby = test_lobby();
-        let mut settings = RoomSettings::default();
-        settings.max_players = 2;
-        lobby.create_room(&rec(1, "Тима"), "Тесно".into(), None, GameMode::Coop, settings).await.unwrap();
+        let settings = RoomSettings { max_players: 2, ..RoomSettings::default() };
+        lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "Тесно".into(),
+                None,
+                GameMode::Coop,
+                settings,
+            )
+            .await
+            .unwrap();
         let code = lobby.room_list().await[0].code.clone();
 
-        assert_eq!(lobby.join_room(&rec(2, "Б"), &code, None).await.unwrap().kind, JoinKind::Player);
-        assert_eq!(lobby.join_room(&rec(3, "В"), &code, None).await.unwrap().kind, JoinKind::Spectator);
+        assert_eq!(
+            lobby
+                .join_room(&rec(2, "Б"), &code, None)
+                .await
+                .unwrap()
+                .kind,
+            JoinKind::Player
+        );
+        assert_eq!(
+            lobby
+                .join_room(&rec(3, "В"), &code, None)
+                .await
+                .unwrap()
+                .kind,
+            JoinKind::Spectator
+        );
         // Зрители: до MAX_SPECTATORS (5) входят, шестой получает RoomFull.
         for i in 0..MAX_SPECTATORS - 1 {
             let r = rec(4 + i as u32, &format!("З{i}"));
-            assert_eq!(lobby.join_room(&r, &code, None).await.unwrap().kind, JoinKind::Spectator);
+            assert_eq!(
+                lobby.join_room(&r, &code, None).await.unwrap().kind,
+                JoinKind::Spectator
+            );
         }
-        assert_eq!(lobby.join_room(&rec(99, "Лишний"), &code, None).await, Err(LobbyError::Code(ErrCode::RoomFull)));
+        assert_eq!(
+            lobby.join_room(&rec(99, "Лишний"), &code, None).await,
+            Err(LobbyError::Code(ErrCode::RoomFull))
+        );
     }
 
     #[tokio::test]
     async fn ready_check_and_host_start() {
         let lobby = test_lobby();
-        lobby.create_room(&rec(1, "Тима"), "R".into(), None, GameMode::Coop, RoomSettings::default()).await.unwrap();
+        lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "R".into(),
+                None,
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
         let code = lobby.room_list().await[0].code.clone();
         lobby.join_room(&rec(2, "Боб"), &code, None).await.unwrap();
 
         // Не-хост не может стартовать.
-        assert_eq!(lobby.start_match(2, 0).await, Err(LobbyError::Code(ErrCode::NotHost)));
+        assert_eq!(
+            lobby.start_match(2, 0).await,
+            Err(LobbyError::Code(ErrCode::NotHost))
+        );
         // Не все готовы.
-        assert_eq!(lobby.start_match(1, 0).await, Err(LobbyError::Code(ErrCode::NotAllowed)));
+        assert_eq!(
+            lobby.start_match(1, 0).await,
+            Err(LobbyError::Code(ErrCode::NotAllowed))
+        );
         lobby.set_ready(2, 0, true).await.unwrap();
         // Хост тоже должен быть готов.
-        assert_eq!(lobby.start_match(1, 0).await, Err(LobbyError::Code(ErrCode::NotAllowed)));
+        assert_eq!(
+            lobby.start_match(1, 0).await,
+            Err(LobbyError::Code(ErrCode::NotAllowed))
+        );
         lobby.set_ready(1, 0, true).await.unwrap();
         lobby.start_match(1, 0).await.unwrap();
-        assert_eq!(lobby.room_list().await[0].in_progress, true);
+        assert!(lobby.room_list().await[0].in_progress);
     }
 
     #[tokio::test]
     async fn kick_requires_host() {
         let lobby = test_lobby();
-        lobby.create_room(&rec(1, "Тима"), "K".into(), None, GameMode::Coop, RoomSettings::default()).await.unwrap();
+        lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "K".into(),
+                None,
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
         let code = lobby.room_list().await[0].code.clone();
         lobby.join_room(&rec(2, "Боб"), &code, None).await.unwrap();
 
-        assert_eq!(lobby.kick(2, 0, 1).await, Err(LobbyError::Code(ErrCode::NotHost)));
+        assert_eq!(
+            lobby.kick(2, 0, 1).await,
+            Err(LobbyError::Code(ErrCode::NotHost))
+        );
         lobby.kick(1, 0, 2).await.unwrap();
         let state = lobby.room_list().await;
         assert_eq!(state[0].players, 1);
@@ -685,7 +857,16 @@ mod tests {
     #[tokio::test]
     async fn host_migrates_and_empty_room_dies() {
         let lobby = test_lobby();
-        let room_id = lobby.create_room(&rec(1, "Тима"), "M".into(), None, GameMode::Coop, RoomSettings::default()).await.unwrap();
+        let room_id = lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "M".into(),
+                None,
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
         let code = lobby.room_list().await[0].code.clone();
         lobby.join_room(&rec(2, "Боб"), &code, None).await.unwrap();
         lobby.join_room(&rec(3, "ВRon"), &code, None).await.unwrap();
@@ -707,9 +888,21 @@ mod tests {
     #[tokio::test]
     async fn reconnect_window_keeps_seat() {
         let lobby = test_lobby();
-        let room_id = lobby.create_room(&rec(1, "Тима"), "R".into(), Some("пароль".into()), GameMode::Coop, RoomSettings::default()).await.unwrap();
+        let room_id = lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "R".into(),
+                Some("пароль".into()),
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
         let code = lobby.room_list().await[0].code.clone();
-        lobby.join_room(&rec(2, "Боб"), &code, Some("пароль")).await.unwrap();
+        lobby
+            .join_room(&rec(2, "Боб"), &code, Some("пароль"))
+            .await
+            .unwrap();
 
         // обрыв: слот остаётся, флаг online гаснет
         assert!(lobby.player_disconnected(2, room_id).await);
@@ -727,7 +920,16 @@ mod tests {
     #[tokio::test]
     async fn sweep_removes_expired_reconnects() {
         let lobby = test_lobby();
-        let room_id = lobby.create_room(&rec(1, "Тима"), "R".into(), None, GameMode::Coop, RoomSettings::default()).await.unwrap();
+        let room_id = lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "R".into(),
+                None,
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
         let code = lobby.room_list().await[0].code.clone();
         lobby.join_room(&rec(2, "Боб"), &code, None).await.unwrap();
         lobby.player_disconnected(2, room_id).await;
@@ -736,7 +938,8 @@ mod tests {
         {
             let mut inner = lobby.inner.lock().await;
             let room = inner.rooms.get_mut(&room_id).unwrap();
-            room.reconnects.insert(2, Instant::now() - Duration::from_secs(1));
+            room.reconnects
+                .insert(2, Instant::now() - Duration::from_secs(1));
         }
         lobby.sweep_reconnects().await;
         let state = lobby.room_state(room_id).await.unwrap();
@@ -746,10 +949,22 @@ mod tests {
     #[tokio::test]
     async fn bots_added_and_removed_by_host() {
         let lobby = test_lobby();
-        let room_id = lobby.create_room(&rec(1, "Тима"), "B".into(), None, GameMode::Coop, RoomSettings::default()).await.unwrap();
+        let room_id = lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "B".into(),
+                None,
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
 
         // не-хост не может
-        assert_eq!(lobby.add_bot(99, room_id, BotLevel::Pro).await, Err(LobbyError::Code(ErrCode::NotHost)));
+        assert_eq!(
+            lobby.add_bot(99, room_id, BotLevel::Pro).await,
+            Err(LobbyError::Code(ErrCode::NotHost))
+        );
         lobby.add_bot(1, room_id, BotLevel::Normal).await.unwrap();
         lobby.add_bot(1, room_id, BotLevel::Pro).await.unwrap();
         let state = lobby.room_state(room_id).await.unwrap();
@@ -763,21 +978,47 @@ mod tests {
         assert_eq!(state.players.len(), 2);
 
         // заполнение до отказа
-        let mut settings = RoomSettings::default();
-        settings.max_players = 2;
-        let room2 = lobby.create_room(&rec(5, "Два"), "B2".into(), None, GameMode::Coop, settings).await.unwrap();
+        let settings = RoomSettings { max_players: 2, ..RoomSettings::default() };
+        let room2 = lobby
+            .create_room(&rec(5, "Два"), "B2".into(), None, GameMode::Coop, settings)
+            .await
+            .unwrap();
         lobby.add_bot(5, room2, BotLevel::Lazy).await.unwrap();
-        assert_eq!(lobby.add_bot(5, room2, BotLevel::Lazy).await, Err(LobbyError::Code(ErrCode::RoomFull)));
+        assert_eq!(
+            lobby.add_bot(5, room2, BotLevel::Lazy).await,
+            Err(LobbyError::Code(ErrCode::RoomFull))
+        );
     }
 
     #[tokio::test]
     async fn finish_match_awards_xp_to_players() {
         let lobby = test_lobby();
-        let room_id = lobby.create_room(&rec(1, "Тима"), "X".into(), None, GameMode::Coop, RoomSettings::default()).await.unwrap();
-        lobby.join_room(&rec(2, "Боб"), &lobby.room_list().await[0].code.clone(), None).await.unwrap();
+        let room_id = lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "X".into(),
+                None,
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
+        lobby
+            .join_room(
+                &rec(2, "Боб"),
+                &lobby.room_list().await[0].code.clone(),
+                None,
+            )
+            .await
+            .unwrap();
 
         // 500 и 250 очков -> 50 и 25 XP; бот (>= BOT_ID_BASE) не получает
-        lobby.finish_match(room_id, vec![(1, 500), (2, 250), (popproto_core::BOT_ID_BASE, 0)]).await;
+        lobby
+            .finish_match(
+                room_id,
+                vec![(1, 500), (2, 250), (popproto_core::BOT_ID_BASE, 0)],
+            )
+            .await;
         let state = lobby.room_state(room_id).await.unwrap();
         let p1 = state.players.iter().find(|p| p.id == 1).unwrap();
         let p2 = state.players.iter().find(|p| p.id == 2).unwrap();
@@ -788,7 +1029,16 @@ mod tests {
     #[tokio::test]
     async fn room_state_broadcast_to_subscribers() {
         let lobby = test_lobby();
-        let room_id = lobby.create_room(&rec(1, "Тима"), "S".into(), None, GameMode::Coop, RoomSettings::default()).await.unwrap();
+        let room_id = lobby
+            .create_room(
+                &rec(1, "Тима"),
+                "S".into(),
+                None,
+                GameMode::Coop,
+                RoomSettings::default(),
+            )
+            .await
+            .unwrap();
         let mut rx = lobby.subscribe(room_id).await.unwrap();
         let code = lobby.room_list().await[0].code.clone();
         lobby.join_room(&rec(2, "Боб"), &code, None).await.unwrap();
