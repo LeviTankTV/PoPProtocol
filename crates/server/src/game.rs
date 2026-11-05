@@ -793,7 +793,14 @@ impl Game {
                                 wsum += bw;
                                 cx += (br.c as f32 + 0.5) * cellw * bw;
                             }
-                            (if wsum > 0.0 { cx / wsum } else { self.field.w / 2.0 }, 300.0)
+                            (
+                                if wsum > 0.0 {
+                                    cx / wsum
+                                } else {
+                                    self.field.w / 2.0
+                                },
+                                300.0,
+                            )
                         };
                         let px = self.field.paddles[slot].x;
                         let aim = (target_x - px) / aim_div;

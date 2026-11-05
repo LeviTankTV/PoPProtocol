@@ -538,7 +538,10 @@ mod tests {
                 color: 3,
             }],
             boss: Some(BossSnap {
-                shields: vec![ShieldSnap { hp: 4, angle_deg: 0 }],
+                shields: vec![ShieldSnap {
+                    hp: 4,
+                    angle_deg: 0,
+                }],
                 kind: 2,
                 hp: 900,
                 max_hp: 1000,
@@ -559,7 +562,11 @@ mod tests {
                 score: 1230,
                 lives: 2,
             }],
-            projs: vec![ProjSnap { id: 1, x: 100, y: 400 }],
+            projs: vec![ProjSnap {
+                id: 1,
+                x: 100,
+                y: 400,
+            }],
         };
         roundtrip(ServerMsg::Snapshot(Box::new(snap)));
     }
