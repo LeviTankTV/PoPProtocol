@@ -29,16 +29,25 @@ pub struct BotBrain {
     pub reaction_ticks: u8,
     /// Разброс целевой точки; ослабляет игру и делает ботов «живыми».
     pub aim_noise: f32,
+    /// Насколько сильно бот смещает точку встречи, чтобы направить отскок
+    /// в сторону кирпичей (управление отскоком краем ракетки).
+    pub steer_px: f32,
 }
 
 impl BotBrain {
     pub fn new(level: BotLevel) -> Self {
-        let (reaction_ticks, aim_noise) = match level {
-            BotLevel::Lazy => (9, 90.0),
-            BotLevel::Normal => (4, 30.0),
-            BotLevel::Pro => (1, 6.0),
+        let (reaction_ticks, aim_noise, steer_px) = match level {
+            BotLevel::Lazy => (9, 90.0, 0.0),
+            BotLevel::Normal => (4, 30.0, 16.0),
+            BotLevel::Pro => (1, 4.0, 34.0),
         };
-        Self { level, reaction_ticks, aim_noise }
+        Self { level, reaction_ticks, aim_noise, steer_px }
+    }
+
+    /// В какую сторону боту выгоднее отвести мяч: знак = направление к кирпичам.
+    /// `bias` в -1..1 (отрицательный — кирпичи слева от точки падения).
+    pub fn steer_bias(&self, bias: f32) -> f32 {
+        self.steer_px * bias.clamp(-1.0, 1.0)
     }
 
     /// Прогноз X падения мяча на линию ракетки с отражениями от стен.
@@ -73,6 +82,7 @@ impl BotBrain {
         ball: &BallView,
         field_w: f32,
         paddle_y: f32,
+        brick_bias: f32,
         rng: &mut impl FnMut() -> f32,
     ) -> f32 {
         let descending = ball.vy > 0.0;
@@ -83,7 +93,8 @@ impl BotBrain {
             BotLevel::Normal | BotLevel::Pro => {
                 if descending {
                     let view = BallView { x: delayed_x, ..*ball };
-                    Self::predict_landing(&view, field_w, paddle_y)
+                    // управление отскоком: чуть смещаемся, чтобы мяч ушёл к кирпичам
+                    Self::predict_landing(&view, field_w, paddle_y) + self.steer_bias(brick_bias)
                 } else {
                     // мяч летит вверх — можно сместиться к центру, но не далеко
                     delayed_x * 0.75 + field_w / 2.0 * 0.25
@@ -120,7 +131,7 @@ mod tests {
     fn target_stays_in_field() {
         let brain = BotBrain::new(BotLevel::Lazy);
         let ball = BallView { x: 400.0, y: 300.0, vx: 100.0, vy: 200.0 };
-        let x = brain.target_x(-500.0, &ball, 800.0, 558.0, &mut fixed_rng());
+        let x = brain.target_x(-500.0, &ball, 800.0, 558.0, 0.0, &mut fixed_rng());
         assert!((0.0..=800.0).contains(&x));
     }
 
@@ -129,9 +140,19 @@ mod tests {
         let brain = BotBrain::new(BotLevel::Pro);
         // мяч летит вправо-вниз: из (200, 100), vx=200, vy=200 -> падение через 2.29 с в x = 200+458
         let ball = BallView { x: 200.0, y: 100.0, vx: 200.0, vy: 200.0 };
-        let x = brain.target_x(200.0, &ball, 800.0, 558.0, &mut fixed_rng());
-        // прогноз: t=(558-100)/200=2.29, x=200+458=658 < 791 (без отражения), шум профи мал
+        let x = brain.target_x(200.0, &ball, 800.0, 558.0, 0.0, &mut fixed_rng());
+        // прогноз: t=(558-100)/200=2.29, x=200+458=658; steer=0 при bias=0, шум профи мал
         assert!((630.0..=686.0).contains(&x), "профи ждёт у точки падения, получил {x}");
+    }
+
+    #[test]
+    fn steering_pushes_toward_bricks() {
+        let brain = BotBrain::new(BotLevel::Pro);
+        let ball = BallView { x: 400.0, y: 100.0, vx: 0.0, vy: 200.0 };
+        let plain = brain.target_x(400.0, &ball, 800.0, 558.0, 0.0, &mut fixed_rng());
+        let left = brain.target_x(400.0, &ball, 800.0, 558.0, -1.0, &mut fixed_rng());
+        let right = brain.target_x(400.0, &ball, 800.0, 558.0, 1.0, &mut fixed_rng());
+        assert!(left < plain && plain < right, "steer смещает точку встречи: {left} {plain} {right}");
     }
 
     #[test]
@@ -147,7 +168,7 @@ mod tests {
     fn ascending_ball_drifts_toward_center() {
         let brain = BotBrain::new(BotLevel::Pro);
         let ball = BallView { x: 100.0, y: 500.0, vx: 0.0, vy: -400.0 };
-        let x = brain.target_x(100.0, &ball, 800.0, 558.0, &mut fixed_rng());
+        let x = brain.target_x(100.0, &ball, 800.0, 558.0, 0.0, &mut fixed_rng());
         assert!(x > 100.0, "при мяче вверху ракетка подтягивается к центру: {x}");
     }
 }

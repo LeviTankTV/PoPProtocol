@@ -592,7 +592,26 @@ impl Game {
                 }
             };
             let ball_view = popproto_bot::BallView { x: view.x, y: view.y, vx: view.vx, vy: view.vy };
-            let tx = brain.target_x(delayed_x, &ball_view, self.field.w, paddle_y, &mut || {
+            // bias: куда выгоднее отвести мяч (-1 — кирпичи слева от точки падения)
+            let brick_bias = {
+                let cellw = self.field.w / 10.0;
+                let mut wsum = 0.0;
+                let mut cx = 0.0;
+                for br in &self.field.bricks {
+                    if br.stone {
+                        continue;
+                    }
+                    let bw = br.hp as f32;
+                    wsum += bw;
+                    cx += (br.c as f32 + 0.5) * cellw * bw;
+                }
+                if wsum > 0.0 {
+                    ((cx / wsum - view.x) / 200.0).clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                }
+            };
+            let tx = brain.target_x(delayed_x, &ball_view, self.field.w, paddle_y, brick_bias, &mut || {
                 self.rng ^= self.rng << 13;
                 self.rng ^= self.rng >> 7;
                 self.rng ^= self.rng << 17;
@@ -613,7 +632,26 @@ impl Game {
                     .map(|p| p.launch_wait <= 0.0)
                     .unwrap_or(false);
                 if can_launch {
-                    let angle = -std::f32::consts::FRAC_PI_2 + (self.next_rand() * 0.5 - 0.25);
+                    // профи запускает мяч в сторону, где больше кирпичей; остальные — случайно
+                    let angle = if level == BotLevel::Pro {
+                        let cellw = self.field.w / 10.0;
+                        let mut wsum = 0.0;
+                        let mut cx = 0.0;
+                        for br in &self.field.bricks {
+                            if br.stone {
+                                continue;
+                            }
+                            let bw = br.hp as f32;
+                            wsum += bw;
+                            cx += (br.c as f32 + 0.5) * cellw * bw;
+                        }
+                        let px = self.field.paddles[slot].x;
+                        let aim = if wsum > 0.0 { (cx / wsum - px) / 300.0 } else { 0.0 };
+                        -std::f32::consts::FRAC_PI_2 + aim.clamp(-1.0, 1.0) * 0.45
+                            + (self.next_rand() * 0.1 - 0.05)
+                    } else {
+                        -std::f32::consts::FRAC_PI_2 + (self.next_rand() * 0.5 - 0.25)
+                    };
                     let ball_id = self.field.balls.iter().find(|b| b.owner == player_id).map(|b| b.id);
                     if let Some(id) = ball_id {
                         self.field.launch(id, angle);
@@ -1829,7 +1867,10 @@ mod tests {
             for m in msgs {
                 if let ServerMsg::EventStarted { event, .. } = m {
                     started += 1;
-                    assert!(g.is_active(event), "запущенный евент активен");
+                    // Капсульный фонтан мгновенный: старт и конец в одном тике
+                    if !matches!(event, EventKind::CapsuleFountain) {
+                        assert!(g.is_active(event), "запущенный евент активен");
+                    }
                 }
             }
             let active: Vec<EventKind> = g.events.iter().map(|e| e.kind).collect();

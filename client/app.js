@@ -77,6 +77,8 @@ const S = {
   comboSeen: new Map(),  // player_id -> последняя серия (для фейерверка)
   prevBalls: new Map(),  // id -> {y} для звука отскока
   prevSig: { bricks: 0, bullets: 0, caps: 0, bossHp: -1, lives: 0 },
+  snapInt: 0, lastSnapRecv: 0,   // EMA интервала снапшотов -> адаптивная задержка
+  paddleX: null,                 // предсказанная позиция СВОЕЙ ракетки (без задержки)
 };
 
 /* ---------- сеть ---------- */
@@ -131,6 +133,7 @@ function handle(m) {
       break;
     case "MatchStarted":
       S.snapBuf = []; S.latest = null; S.bricks.clear(); S.over = null;
+      S.paddleX = null; S.trails.clear(); S.comboSeen.clear();
       showScreen("game");
       break;
     case "Snapshot": onSnapshot(m); break;
@@ -202,7 +205,20 @@ function onSnapshot(s) {
   }
   S.fieldW = s.field_w; S.fieldH = s.field_h;
   if (!S.latest || S.latest.field_w !== s.field_w || S.latest.field_h !== s.field_h) fitCanvas(s.field_w);
-  S.snapBuf.push({ recv: performance.now(), snap: s });
+  const now = performance.now();
+  if (S.lastSnapRecv) {
+    S.snapInt = S.snapInt ? S.snapInt * 0.8 + (now - S.lastSnapRecv) * 0.2 : now - S.lastSnapRecv;
+  }
+  S.lastSnapRecv = now;
+  // коррекция предсказания своей ракетки (телепорт/респаун/стан)
+  const me = s.players.find((pl) => pl.id === S.myId);
+  if (me) {
+    const sx = me.x;
+    if (S.paddleX === null || Math.abs(S.paddleX - sx) > 60 || me.state === 2) S.paddleX = sx;
+  } else {
+    S.paddleX = null;
+  }
+  S.snapBuf.push({ recv: now, snap: s });
   if (S.snapBuf.length > 10) S.snapBuf.shift();
   S.latest = s;
   updateHud(s);
@@ -336,6 +352,7 @@ async function initPixi() {
   const holder = document.getElementById("canvas-holder");
   holder.appendChild(app.canvas);
   window.__pixiApp = app; // для отладки/тестов
+  window.__S = S;
   g = new PIXI.Graphics();
   app.stage.addChild(g);
   app.ticker.add(() => {
@@ -482,19 +499,36 @@ function interpPair(buf, renderTime, get) {
   return [get(a.snap), get(b.snap), k];
 }
 function entityAt(buf, renderTime, id, get) {
-  // позиция сущности в момент renderTime: лерп между двумя снапшотами
-  let a = null, b = null;
-  for (const s of buf) {
-    if (s.recv <= renderTime) a = s;
-    else { b = s; break; }
+  // Кубический Эрмит по двум снапшотам вокруг renderTime; наклоны — конечные
+  // разности по соседям: траектория C1-гладкая, без изломов на стыках снапшотов.
+  if (buf.length < 2) { const s0 = buf[0]; return s0 ? get(s0.snap) : null; }
+  let ia = 0;
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i].recv <= renderTime) ia = i; else break;
   }
-  if (!a) a = buf[0];
-  if (!b) b = buf[buf.length - 1];
-  const ea = a && get(a.snap), eb = b && get(b.snap);
+  const a = buf[ia], b = buf[Math.min(buf.length - 1, ia + 1)];
+  const ea = get(a.snap), eb = get(b.snap);
   if (!ea) return eb;
   if (!eb || ea === eb) return ea;
-  const k = Math.min(1, Math.max(0, (renderTime - a.recv) / Math.max(1, b.recv - a.recv)));
-  return { ...eb, x: lerp(ea.x, eb.x, k), y: lerp(ea.y, eb.y, k) };
+  const span = Math.max(1, b.recv - a.recv);
+  const t = Math.min(1, Math.max(0, (renderTime - a.recv) / span));
+  const prevA = ia > 0 ? get(buf[ia - 1].snap) : null;
+  const nextB = ia + 2 < buf.length ? get(buf[ia + 2].snap) : null;
+  const herm = (xa, xb, va, vb) => {
+    const t2 = t * t, t3 = t2 * t;
+    const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t;
+    const h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+    let v = h00 * xa + h10 * span * va + h01 * xb + h11 * span * vb;
+    // страховка от выброса на резком отскоке: не дальше 9px от линейного
+    const lin = xa + (xb - xa) * t;
+    if (Math.abs(v - lin) > 9) v = lin;
+    return v;
+  };
+  const dxa = prevA ? (eb.x - prevA.x) / Math.max(1, b.recv - prevA.recv) : (eb.x - ea.x) / span;
+  const dxb = nextB ? (nextB.x - ea.x) / Math.max(1, nextB.recv - a.recv) : (eb.x - ea.x) / span;
+  const dya = prevA ? (eb.y - prevA.y) / Math.max(1, b.recv - prevA.recv) : (eb.y - ea.y) / span;
+  const dyb = nextB ? (nextB.y - ea.y) / Math.max(1, nextB.recv - a.recv) : (eb.y - ea.y) / span;
+  return { ...eb, x: herm(ea.x, eb.x, dxa, dxb), y: herm(ea.y, eb.y, dya, dyb) };
 }
 
 // детерминированный рандом для фона (одинаковое поле у всех)
@@ -539,7 +573,9 @@ function render() {
   if (!g) return;
   g.clear();
   if (!S.latest) { drawIdleTitle(); return; }
-  const rt = performance.now() - INTERP_DELAY;
+  // адаптивная задержка: 1.6 интервала снапшотов, зажата в 50–140 мс
+  const delay = Math.min(140, Math.max(50, (S.snapInt || 100) * 1.6));
+  const rt = performance.now() - delay;
   const buf = S.snapBuf.length ? S.snapBuf : [{ recv: 0, snap: S.latest }];
   const W = S.latest.field_w, H = S.latest.field_h;
   drawBackground(W, H);
@@ -626,10 +662,20 @@ function render() {
     g.roundRect(u.x - 2.5, y - 12, 5, 14, 2.5).fill(0xee7724);
   }
 
-  // ракетки
+  // ракетки: своя — с предсказанием (нулевая задержка), чужие — Эрмит
+  const nowMs = performance.now();
+  const dtS = Math.min(0.05, (nowMs - (S.lastFrame || nowMs)) / 1000);
+  S.lastFrame = nowMs;
   for (const p of S.latest.players) {
-    const e = entityAt(buf, rt, p.id, (s) => s.players.find((q) => q.id === p.id));
+    let e = entityAt(buf, rt, p.id, (s) => s.players.find((q) => q.id === p.id));
     if (!e) continue;
+    if (p.id === S.myId && S.paddleX !== null && p.state !== 2) {
+      // предсказание: ракетка едет к цели со скоростью сервера — расхождение ~0
+      const half = e.w / 2;
+      const target = Math.min(S.latest.field_w - half, Math.max(half, S.inputX));
+      S.paddleX += Math.max(-760 * dtS, Math.min(760 * dtS, target - S.paddleX));
+      e = { ...e, x: S.paddleX };
+    }
     const base = COLORS[((playerInfo(p.id) || {}).color || 0) % COLORS.length];
     const color = p.state === 2 ? 0x9aa5b1 : base; // стан — серая ракетка
     const py = H - 42;
