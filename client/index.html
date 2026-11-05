@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoP - Protocol</title>
+<style>
+  :root{
+    --c1:#ff6b6b; --c2:#feca57; --c3:#48dbfb; --c4:#1dd1a1; --c5:#a55eea; --c6:#ff9ff3;
+    --ink:#3b3552;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ overflow-x:hidden; }
+  body{
+    font-family:'Comic Sans MS','Chalkboard SE','Segoe Print','Marker Felt',cursive,sans-serif;
+    color:var(--ink); min-height:100vh;
+    background:
+      radial-gradient(1200px 600px at 20% -10%, #fff3c4 0%, transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, #d6f0ff 0%, transparent 55%),
+      radial-gradient(900px 700px at 50% 110%, #ffe3f1 0%, transparent 60%),
+      #fdf6ec;
+    display:flex; flex-direction:column; align-items:center;
+    padding:14px; gap:8px;
+  }
+  h1{
+    font-size:clamp(30px,5vw,46px); letter-spacing:2px;
+    background:linear-gradient(90deg,var(--c1),var(--c2),var(--c4),var(--c3),var(--c5));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:wob 3.2s ease-in-out infinite;
+  }
+  @keyframes wob{ 0%,100%{ transform:rotate(-1.2deg) scale(1);} 50%{ transform:rotate(1.2deg) scale(1.03);} }
+  #conn{ font-size:13px; font-weight:bold; opacity:.8; }
+  #conn.ok{ color:#10ac84; } #conn.err{ color:#e0181d; }
+  #wrap{
+    position:relative; width:min(960px,96vw);
+    background:#fffdf7; border:3px solid #2f2b44; border-radius:22px;
+    box-shadow:0 10px 0 rgba(47,43,68,.25), 0 24px 40px rgba(47,43,68,.18);
+    padding:10px 12px 14px;
+  }
+  #canvas-holder{ width:100%; display:flex; justify-content:center; }
+  #canvas-holder canvas{ border:2px solid #2f2b44; border-radius:14px; background:linear-gradient(#f7f3ff,#fff6fa); touch-action:none; }
+  .screen{ display:none; padding:10px 4px; }
+  .muted{ opacity:.6; font-size:13px; }
+  button{
+    font:inherit; font-weight:bold; font-size:15px; cursor:pointer;
+    background:var(--c2); border:2px solid #2f2b44; border-radius:14px;
+    padding:5px 14px; box-shadow:0 3px 0 rgba(47,43,68,.3);
+    transition:transform .08s; user-select:none;
+  }
+  button:active{ transform:translateY(3px); box-shadow:none; }
+  button.small{ font-size:12px; padding:2px 8px; margin-left:6px; }
+  input{
+    font:inherit; font-size:15px; padding:5px 10px; margin:2px 4px;
+    border:2px solid #2f2b44; border-radius:12px; background:#fff; width:180px;
+  }
+  .menu-row{ margin:8px 0; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .room-row,.player-row{ padding:6px 10px; border:2px solid #2f2b44; border-radius:12px; background:#fff; margin:5px 0; display:flex; align-items:center; gap:8px; box-shadow:0 2px 0 rgba(47,43,68,.15); }
+  .room-row{ justify-content:space-between; }
+  .dot{ width:14px; height:14px; border-radius:50%; border:2px solid #2f2b44; display:inline-block; }
+  #hud{ display:flex; gap:8px; flex-wrap:wrap; margin:6px 0; min-height:30px; }
+  .pill{ background:#fff; border:2px solid #2f2b44; border-radius:12px; padding:2px 10px; font-size:14px; font-weight:bold; box-shadow:0 2px 0 rgba(47,43,68,.2); }
+  .combo{ color:#e0181d; }
+  #chat{ height:110px; overflow-y:auto; border:2px solid #2f2b44; border-radius:12px; background:#fff; padding:6px 10px; font-size:14px; margin:6px 0; }
+  #over{ display:none; position:absolute; inset:0; background:rgba(255,253,247,.94); border-radius:22px; z-index:5; flex-direction:column; align-items:center; justify-content:center; gap:6px; font-size:18px; text-align:center; }
+  #over h2{ font-size:34px; }
+  #toasts{ position:fixed; top:12px; right:12px; z-index:9; display:flex; flex-direction:column; gap:6px; }
+  #toasts div{ background:#2f2b44; color:#fff; padding:6px 14px; border-radius:12px; font-size:14px; animation:popin .25s ease; }
+  @keyframes popin{ 0%{ transform:scale(1.4);} 100%{ transform:scale(1);} }
+  .hint{ text-align:center; font-size:12px; opacity:.6; margin-top:8px; }
+</style>
+</head>
+<body>
+  <h1>PoP - Protocol</h1>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <div id="conn">подключение…</div>
+    <button id="btn-lang" class="small">EN</button>
+    <button id="btn-sound" class="small">🔊</button>
+  </div>
+
+  <div id="wrap">
+    <!-- МЕНЮ -->
+    <div id="screen-menu" class="screen">
+      <div class="menu-row">
+        <input id="room-name" data-i18n-ph="roomName" maxlength="32">
+        <input id="room-pass" data-i18n-ph="roomPass" maxlength="32">
+        <select id="room-mode" style="font:inherit;padding:5px 8px;border:2px solid #2f2b44;border-radius:12px">
+          <option value="0">Кооп</option>
+          <option value="1">Босс-раш</option>
+          <option value="2">Волна</option>
+        </select>
+        <button id="btn-create" data-i18n="create">Создать</button>
+      </div>
+      <div class="menu-row">
+        <input id="join-code" data-i18n-ph="joinCode" maxlength="6" style="width:120px">
+        <input id="join-pass" data-i18n-ph="joinPass" maxlength="32" style="width:120px">
+        <button id="btn-join-code" data-i18n="joinByCode">Войти по коду</button>
+        <button id="btn-refresh" data-i18n="refresh">↻ обновить</button>
+      </div>
+      <div class="menu-row">
+        <button id="btn-leaderboard" class="small" data-i18n="leaderboard">🏆 Топ игроков</button>
+      </div>
+      <div id="rooms"></div>
+    </div>
+
+    <!-- КОМНАТА -->
+    <div id="screen-room" class="screen">
+      <div class="menu-row"><b id="room-title"></b><span style="flex:1"></span>
+        <button id="btn-ready" data-i18n="ready">Готов</button>
+        <button id="btn-start" style="display:none" data-i18n="start">▶ Старт</button>
+        <button id="btn-leave" data-i18n="leave">Выйти</button>
+      </div>
+      <div class="menu-row" id="bot-buttons" style="display:none">
+        <span class="muted" data-i18n="bots">Боты:</span>
+        <button id="btn-bot-lazy" class="small">+ Лентяй</button>
+        <button id="btn-bot-normal" class="small">+ Обычный</button>
+        <button id="btn-bot-pro" class="small">+ Профи</button>
+      </div>
+      <div id="room-players"></div>
+      <div id="chat"></div>
+      <div class="menu-row">
+        <input id="chat-input" placeholder="сообщение…" maxlength="120" style="flex:1; width:auto">
+        <button id="btn-chat">></button>
+      </div>
+    </div>
+
+    <!-- МАТЧ -->
+    <div id="screen-game" class="screen">
+      <div id="hud"></div>
+      <div id="canvas-holder"></div>
+      <div class="hint" data-i18n="hint">мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции</div>
+    </div>
+
+    <div id="over"></div>
+  </div>
+
+  <div id="toasts"></div>
+
+  <script src="/pixi.min.js"></script>
+  <script>window.PIXI||document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js"><\/scr'+'ipt>');</script>
+  <script src="/proto.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

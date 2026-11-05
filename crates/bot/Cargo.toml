@@ -1,0 +1,7 @@
+[package]
+name = "popproto-bot"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+popproto-core = { workspace = true }

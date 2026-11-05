@@ -1,0 +1,4 @@
+# Windows: использовать self-contained линкер rustup вместо TDM-GCC из PATH.
+# На Linux эта секция не применяется (там цель x86_64-unknown-linux-gnu).
+[target.x86_64-pc-windows-gnu]
+linker = "C:\\Users\\Tima\\.rustup\\toolchains\\stable-x86_64-pc-windows-gnu\\lib\\rustlib\\x86_64-pc-windows-gnu\\bin\\self-contained\\x86_64-w64-mingw32-gcc.exe"
