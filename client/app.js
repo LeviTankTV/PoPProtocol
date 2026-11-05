@@ -165,6 +165,7 @@ function handle(m) {
     case "MatchStarted":
       S.snapBuf = []; S.latest = null; S.bricks.clear(); S.over = null;
       S.paddleX = null; S.trails.clear(); S.comboSeen.clear(); S.overUntil = 0; S.overPending = false;
+      if (S.ballSpawn) S.ballSpawn.clear(); if (S.prevBalls) S.prevBalls.clear();
       S.bgDirty = true; S.bricksDirty = true;
       showScreen("game");
       break;
@@ -518,6 +519,8 @@ const sfxBossHit = () => { tone(110, 0.16, "sine", 0.09, 55); noiseBurst(0.09, 0
 const sfxLose = () => tone(330, 0.4, "sawtooth", 0.05, 90);
 const sfxFirework = () => { noiseBurst(0.12, 0.04); tone(660, 0.2, "sine", 0.035, 1320); };
 const sfxShieldHit = () => { tone(300, 0.1, "square", 0.04, 150); noiseBurst(0.05, 0.03); };
+const sfxPoof = () => { noiseBurst(0.14, 0.05); tone(220, 0.12, "sine", 0.035, 90); };
+const sfxLaunch = () => { tone(420, 0.08, "triangle", 0.03, 880); };
 
 /* ---------- частицы (локальный сок, автоотключение при низком FPS) ---------- */
 const PARTICLE_CAP = 150;
@@ -897,30 +900,61 @@ function render() {
     g.roundRect(e.x - e.w / 2 + 4, py + 2, e.w - 8, 4, 2).fill({ color: 0xffffff, alpha: 0.5 });
   }
 
+  // хвосты живут только у мячей в поле; мёртвые удаляем, телепорт не сшиваем
+  const liveIds = new Set(S.latest.balls.map((b) => b.id));
+  for (const id of [...S.trails.keys()]) if (!liveIds.has(id)) S.trails.delete(id);
+  const popNow = performance.now();
+  if (!S.ballSpawn) S.ballSpawn = new Map();
+  if (!S.prevBalls) S.prevBalls = new Map();
+  const curBalls = new Map();
   for (const b of S.latest.balls) {
     const e = entityAt(buf, rt, b.id, (s) => s.balls.find((q) => q.id === b.id));
     if (!e) { S.trails.delete(b.id); continue; }
     const color = COLORS[((playerInfo(b.owner_id) || {}).color ?? 5) % COLORS.length];
+    curBalls.set(b.id, { x: e.x, y: e.y, color });
     // мой прилипший мяч клеится к предсказанной ракетке — ноль отставания
-    if (b.owner_id === S.myId && e.y > H - 80 && S.paddleX !== null) e.x = S.paddleX;
+    const glued = b.owner_id === S.myId && e.y > H - 80 && S.paddleX !== null;
+    if (glued) e.x = S.paddleX;
     let tr = S.trails.get(b.id);
     if (!tr) { tr = []; S.trails.set(b.id, tr); }
-    tr.push({ x: e.x, y: e.y });
-    if (tr.length > 8) tr.shift();
-    // хвост — непрерывная линия (без «пружинок» из кружков)
-    if (tr.length > 1) {
-      g.moveTo(tr[0].x, tr[0].y);
-      for (let i = 1; i < tr.length - 1; i++) g.lineTo(tr[i].x, tr[i].y);
-      g.stroke({ color, width: BALL_R * 1.1, alpha: 0.25, cap: "round", join: "round" });
+    const last = tr[tr.length - 1];
+    // прычок больше поля = respawn/телепорт: хвост обнуляем, а не тянем через весь экран
+    if (last && Math.hypot(e.x - last.x, e.y - last.y) > 140) tr.length = 0;
+    // прилипший мяч хвоста не оставляет
+    if (!glued) {
+      tr.push({ x: e.x, y: e.y });
+      if (tr.length > 8) tr.shift();
+      if (tr.length > 1) {
+        g.moveTo(tr[0].x, tr[0].y);
+        for (let i = 1; i < tr.length - 1; i++) g.lineTo(tr[i].x, tr[i].y);
+        g.stroke({ color, width: BALL_R * 1.1, alpha: 0.25, cap: "round", join: "round" });
+      }
+    } else if (tr.length) tr.length = 0;
+    // pop-in: новый мяч появляется у ракетки с «выпрыгиванием»
+    if (!S.ballSpawn.has(b.id)) {
+      S.ballSpawn.set(b.id, popNow);
+      if (b.owner_id === S.myId) sfxLaunch();
     }
+    b._pop = Math.min(1, (popNow - S.ballSpawn.get(b.id)) / 220);
     g.circle(e.x, e.y, BALL_R * 1.9).fill({ color, alpha: 0.16 });
     g.circle(e.x, e.y, BALL_R * 1.35).fill({ color, alpha: 0.22 });
-    g.circle(e.x, e.y, BALL_R).fill({ color: 0xffffff, alpha: 0.95 });
+    g.circle(e.x, e.y, BALL_R * (0.4 + 0.6 * (b._pop === undefined ? 1 : b._pop))).fill({ color: 0xffffff, alpha: 0.95 });
     g.circle(e.x, e.y, BALL_R - 2.2).fill(color);
     g.circle(e.x + 1.5, e.y + 2.5, BALL_R - 4).fill({ color: 0x000000, alpha: 0.18 });
     g.circle(e.x - 3, e.y - 3.5, 3).fill({ color: 0xffffff, alpha: 0.95 });
     g.circle(e.x - 1.2, e.y - 1.8, 1.4).fill({ color: 0xffffff, alpha: 0.7 });
   }
+  // хлопок на потере мяча: кольцо в точке, где он ушёл за ракетку
+  if (S.prevBalls && S.prevBalls.size) {
+    for (const [pid, p] of S.prevBalls) {
+      if (!curBalls.has(pid)) {
+        spawnRing(p.x, Math.min(H - 10, p.y), p.color, 22);
+        sfxPoof();
+      }
+    }
+  }
+  S.prevBalls = curBalls;
+
   if (S.trails.size > S.latest.balls.length * 2) {
     const ids = new Set(S.latest.balls.map((b) => b.id));
     for (const id of S.trails.keys()) if (!ids.has(id)) S.trails.delete(id);
