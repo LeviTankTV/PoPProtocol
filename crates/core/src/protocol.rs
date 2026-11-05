@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::MAX_PLAYERS;
 
-pub const PROTOCOL_VERSION: u16 = 3;
+pub const PROTOCOL_VERSION: u16 = 4;
 
 /// Синтетические id ботов: диапазон не пересекается с id игроков из БД.
 pub const BOT_ID_BASE: u32 = 0xF000_0000;
@@ -371,6 +371,12 @@ pub struct FinalScore {
     pub score: u32,
     /// Место в матче, 1 = лучший.
     pub place: u32,
+    /// Лучшая серия комбо за матч (ачивка «Снайпер серии»).
+    pub max_combo: u32,
+    /// Разбитых кирпичей (ачивка «Клейщик»).
+    pub bricks: u32,
+    /// Попаданий по боссу (ачивка «Охотник»).
+    pub boss_hits: u32,
 }
 
 /* ---------- вспомогательная палитра ---------- */

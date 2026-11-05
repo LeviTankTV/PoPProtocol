@@ -408,8 +408,25 @@ impl Lobby {
             (None, _) => {}
             _ => return Err(ErrCode::WrongPassword.into()),
         }
-        if room.players.iter().any(|p| p.id == player.player_id) || room.spectators.iter().any(|p| p.id == player.player_id) {
-            return Err(ErrCode::NotAllowed.into()); // уже в комнате
+        if room.players.iter().any(|p| p.id == player.player_id) {
+            return Err(ErrCode::NotAllowed.into()); // уже игрок
+        }
+        // Зритель просится в игроки: переводим, если есть свободный слот.
+        if let Some(spec) = room.spectators.iter().find(|p| p.id == player.player_id) {
+            if room.players.len() >= room.settings.max_players as usize || room.phase == RoomPhase::Playing {
+                return Err(ErrCode::RoomFull.into()); // места нет — остаёшься зрителем
+            }
+            let mut info = spec.clone();
+            info.color = (0..8u8)
+                .find(|c| !room.players.iter().any(|p| p.color == *c))
+                .unwrap_or(room.players.len() as u8);
+            info.ready = false;
+            room.spectators.retain(|p| p.id != player.player_id);
+            room.players.push(info);
+            let room_id = room.id;
+            tracing::info!("зритель {} стал игроком в комнате #{room_id}", player.name);
+            room.broadcast_state();
+            return Ok(Joined { room_id, kind: JoinKind::Player });
         }
 
         let kind = if room.phase == RoomPhase::Playing || room.players.len() >= room.settings.max_players as usize {

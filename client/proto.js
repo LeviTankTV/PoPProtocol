@@ -26,7 +26,7 @@ class R {
   vec(fn) { const n = this.u64(); const out = []; for (let k = 0; k < n; k++) out.push(fn()); return out; }
 }
 
-const PROTOCOL_VERSION = 3;
+const PROTOCOL_VERSION = 4;
 
 // Явные функции кодирования: читаемость важнее краткости.
 function mHello(name, token) {
@@ -74,7 +74,7 @@ function decode(buf) {
     case 5: return { t: "MatchStarted" };
     case 6: return readSnapshot(r);
     case 7: return { t: "LevelCleared", level: r.u32() };
-    case 8: return { t: "MatchOver", reason: r.u32(), scores: r.vec(() => ({ player_id: r.u32(), name: r.str(), score: r.u32(), place: r.u32() })) };
+    case 8: return { t: "MatchOver", reason: r.u32(), scores: r.vec(() => ({ player_id: r.u32(), name: r.str(), score: r.u32(), place: r.u32(), max_combo: r.u32(), bricks: r.u32(), boss_hits: r.u32() })) };
     case 9: return { t: "EventStarted", event: r.u32(), duration_secs: r.f32() };
     case 10: return { t: "EventEnded", event: r.u32() };
     case 11: return { t: "Chat", player_id: r.u32(), text: r.str() };

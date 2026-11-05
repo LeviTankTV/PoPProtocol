@@ -92,6 +92,10 @@ struct MatchPlayer {
     lives: u8,
     combo: u8,
     combo_timer: f32,
+    /// Статистика для итоговых ачивок.
+    max_combo: u32,
+    bricks: u32,
+    boss_hits: u32,
     connected: bool,
     /// Ушёл из матча навсегда (PlayerLeft); отключение — не уход.
     gone: bool,
@@ -170,6 +174,9 @@ impl Game {
                 lives: 3,
                 combo: 0,
                 combo_timer: 0.0,
+                max_combo: 0,
+                bricks: 0,
+                boss_hits: 0,
                 connected: true,
                 gone: false,
                 ready: true,
@@ -241,7 +248,7 @@ impl Game {
         if g.level > 1 {
             g.field.load_level((g.level - 1) as usize);
             g.sent_bricks.clear();
-            if g.level % 3 == 0 {
+            if g.level % 3 == 0 && g.level < popproto_core::field::LEVELS.len() as u32 {
                 g.field.bricks.clear();
                 g.field.grid_clear();
                 let living = g.players.iter().filter(|p| p.connected && !p.gone && p.lives > 0).count();
@@ -887,6 +894,8 @@ impl Game {
                 p.combo = if p.combo_timer > 0.0 { p.combo + 1 } else { 1 };
                 p.combo_timer = COMBO_WINDOW;
                 p.score += 10 * mult * p.combo as u32;
+                p.bricks += 1;
+                p.max_combo = p.max_combo.max(p.combo as u32);
             }
             if self.next_rand() < self.capsule_chance {
                 self.spawn_capsule(ev.c, ev.r);
@@ -900,13 +909,24 @@ impl Game {
             let mut balls = std::mem::take(&mut self.field.balls);
             let rnd = self.next_rand();
             let boss = self.boss.as_mut().unwrap();
-            for ball in balls.iter_mut() {
-                let dx = ball.x - boss.x;
-                let dy = ball.y - boss.y;
-                if dx * dx + dy * dy <= (crate::boss::BOSS_R + popproto_core::field::BALL_R)
-                    * (crate::boss::BOSS_R + popproto_core::field::BALL_R)
-                {
-                    boss.hit_by_ball(ball, rnd);
+            let mut hit_owners: Vec<u32> = vec![];
+            {
+                let (bx, by) = (boss.x, boss.y);
+                for ball in balls.iter_mut() {
+                    let dx = ball.x - bx;
+                    let dy = ball.y - by;
+                    if dx * dx + dy * dy
+                        <= (crate::boss::BOSS_R + popproto_core::field::BALL_R)
+                            * (crate::boss::BOSS_R + popproto_core::field::BALL_R)
+                    {
+                        boss.hit_by_ball(ball, rnd);
+                        hit_owners.push(ball.owner);
+                    }
+                }
+            }
+            for owner in hit_owners {
+                if let Some(p) = self.players.iter_mut().find(|p| p.player_id == owner) {
+                    p.boss_hits += 1;
                 }
             }
             self.field.balls = balls;
@@ -990,7 +1010,15 @@ impl Game {
         let mut scores: Vec<FinalScore> = self
             .players
             .iter()
-            .map(|p| FinalScore { player_id: p.player_id, name: p.name.clone(), score: p.score, place: 0 })
+            .map(|p| FinalScore {
+                player_id: p.player_id,
+                name: p.name.clone(),
+                score: p.score,
+                place: 0,
+                max_combo: p.max_combo,
+                bricks: p.bricks,
+                boss_hits: p.boss_hits,
+            })
             .collect();
         scores.sort_by(|a, b| b.score.cmp(&a.score));
         for (i, s) in scores.iter_mut().enumerate() {
@@ -1038,8 +1066,8 @@ impl Game {
             }
         }
         self.sync_ready_balls();
-        // Каждый 3-й уровень (3, 6, 9...) — босс-арена вместо кирпичей.
-        if self.level % 3 == 0 {
+        // Босс-арены на 3, 6, 9, 12; финальный 15-й — бронированная стена.
+        if self.level % 3 == 0 && self.level < popproto_core::field::LEVELS.len() as u32 {
             self.field.bricks.clear();
             self.field.grid_clear();
             let living = self.players.iter().filter(|p| p.connected && !p.gone && p.lives > 0).count();
@@ -1433,6 +1461,43 @@ mod tests {
         g.handle_cmd(GameCmd::Action { player_id: 1 });
         // (мяч уже летит за ботом либо запускается сейчас — ввод принят)
         assert!(!g.players[0].afk);
+    }
+
+    #[test]
+    fn final_scores_carry_stats() {
+        let mut g = one_player_game();
+        g.handle_cmd(GameCmd::Action { player_id: 1 });
+        // три раза ставим мяч в первый кирпич и бьём
+        for _ in 0..3 {
+            if g.field.bricks.is_empty() || g.phase != MatchPhase::Play {
+                break;
+            }
+            let br = g.field.bricks[0].clone();
+            let cellw = g.field.w / 10.0;
+            let bx = (br.c as f32 + 0.5) * cellw;
+            let by = popproto_core::field::GRID_TOP + br.r as f32 * popproto_core::field::CELL_H + 13.0;
+            {
+                let b = g.field.balls.first_mut().unwrap();
+                b.x = bx;
+                b.y = by;
+                b.vx = 0.0;
+                b.vy = BASE_SPEED;
+            }
+            for _ in 0..6 {
+                g.tick(1.0 / TICK_HZ as f32);
+            }
+            // при LevelClear перезапускаем уровень
+            if g.phase == MatchPhase::LevelClear {
+                for _ in 0..(CLEAR_PAUSE * TICK_HZ as f32) as i32 + 2 {
+                    g.tick(1.0 / TICK_HZ as f32);
+                }
+                g.handle_cmd(GameCmd::Action { player_id: 1 });
+            }
+        }
+        let scores = g.final_scores();
+        assert!(scores[0].bricks >= 2, "кирпичи посчитаны: {:?}", scores);
+        assert!(scores[0].max_combo >= 1, "серия посчитана: {:?}", scores);
+        assert!(scores[0].score > 0);
     }
 
     /* ---------- тесты режимов ---------- */

@@ -11,7 +11,7 @@ function str(s) { const u = Buffer.from(s, "utf8"); return Buffer.concat([u64(u.
 function opt(p) { return p === null ? Buffer.from([0]) : Buffer.concat([Buffer.from([1]), p]); }
 
 const enc = {
-  hello: (name, token) => Buffer.concat([u32(0), u16(3), str(name), opt(token ? str(token) : null)]),
+  hello: (name, token) => Buffer.concat([u32(0), u16(4), str(name), opt(token ? str(token) : null)]),
   addBot: (level) => Buffer.concat([u32(13), u32(level)]),
   removeBot: (id) => Buffer.concat([u32(14), u32(id)]),
   createRoom: (name, pass) => Buffer.concat([u32(2), str(name), opt(pass ? str(pass) : null), u32(0), Buffer.from([10, 1, 1]), f32(1.0)]),

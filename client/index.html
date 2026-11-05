@@ -72,6 +72,16 @@
   #toasts div{ background:#2f2b44; color:#fff; padding:6px 14px; border-radius:12px; font-size:14px; animation:popin .25s ease; }
   @keyframes popin{ 0%{ transform:scale(1.4);} 100%{ transform:scale(1);} }
   .hint{ text-align:center; font-size:12px; opacity:.6; margin-top:8px; }
+  @media (max-width: 720px) {
+    h1 { font-size: 1.6rem; }
+    .menu-row { flex-wrap: wrap; }
+    #hud { flex-wrap: wrap; gap: 4px; font-size: 0.85rem; }
+    .pill { padding: 3px 8px; }
+    #room-buttons button, #bot-buttons button { padding: 8px 12px; font-size: 1rem; }
+    #color-palette .color-dot { width: 26px; height: 26px; }
+    body { padding: 8px; }
+    #canvas-holder { margin: 4px 0; }
+  }
 </style>
 </head>
 <body>
@@ -110,7 +120,8 @@
     <!-- КОМНАТА -->
     <div id="screen-room" class="screen">
       <div class="menu-row"><b id="room-title"></b><span style="flex:1"></span>
-        <button id="btn-ready" data-i18n="ready">Готов</button>
+        <button id="btn-join-play" style="display:none" data-i18n="becomePlayer">Стать игроком</button>
+      <button id="btn-ready" data-i18n="ready">Готов</button>
         <button id="btn-start" style="display:none" data-i18n="start">▶ Старт</button>
         <button id="btn-leave" data-i18n="leave">Выйти</button>
       </div>

@@ -321,6 +321,13 @@ function renderRoom() {
   }
   document.getElementById("btn-start").style.display = S.isHost ? "inline-block" : "none";
   // Готов нажимают все, включая хоста — сервер стартует только при полной готовности.
+  // зритель при свободном слоте может стать игроком
+  const joinBtn = document.getElementById("btn-join-play");
+  if (joinBtn) {
+    const iAmSpec = r.spectators.some((p) => p.id === S.myId);
+    const freeSlot = r.players.length < r.settings.max_players && r.phase !== 2;
+    joinBtn.style.display = iAmSpec && freeSlot ? "inline-block" : "none";
+  }
   document.getElementById("btn-ready").style.display = "inline-block";
   const botRow = document.getElementById("bot-buttons");
   botRow.style.display = S.isHost ? "flex" : "none";
@@ -352,15 +359,26 @@ function updateHud(s) {
     })
     .join("")
     + (s.events || []).map((ev) => `<span class="pill combo">⚡ ${EVENT_NAMES[ev.event] || "?"} ${ev.remaining_secs > 100 ? "∞" : Math.max(0, Math.round(ev.remaining_secs)) + "с"}</span>`).join("")
-    + `<span class="pill muted">ур. ${s.level} · тик ${s.tick}</span>`;
+    + `<span class="pill muted">ур. ${s.level} · тик ${s.tick}${S.room && S.room.spectators.length ? " · 👀 " + S.room.spectators.length : ""}</span>`;
 }
 
 /* матч: итог */
 function showOver(m) {
   const box = document.getElementById("over");
   const reason = m.reason === 1 ? t("winTitle") : m.reason === 2 ? t("exhausted") : t("loseTitle");
+  // ачивки: MVP, лучшая серия, клейщик, охотник на боссов
+  const best = (key) => Math.max(0, ...m.scores.map((s) => s[key] || 0));
+  const maxCombo = best("max_combo"), maxBricks = best("bricks"), maxBoss = best("boss_hits");
+  const medals = (s) => {
+    let out = "";
+    if (s.place === 1 && m.scores.length > 1) out += " 👑MVP";
+    if (s.max_combo >= 5 && s.max_combo === maxCombo) out += ` 🎯×${s.max_combo}`;
+    if (s.bricks > 0 && s.bricks === maxBricks) out += ` 🧱${s.bricks}`;
+    if (s.boss_hits > 0 && s.boss_hits === maxBoss) out += ` 🐙${s.boss_hits}`;
+    return out;
+  };
   box.innerHTML = `<h2>${reason}</h2>` +
-    m.scores.map((s) => `<div>${s.place}. <b>${escapeHtml(s.name)}</b> — ${s.score}</div>`).join("") +
+    m.scores.map((s) => `<div>${s.place}. <b>${escapeHtml(s.name)}</b> — ${s.score}${medals(s)}</div>`).join("") +
     `<p class='muted'>${t("backToLobby")}</p>`;
   box.style.display = "block";
 }
@@ -878,6 +896,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     const pass = document.getElementById("join-pass").value.trim();
     if (code) send(P.mJoinRoom(code, pass || null));
   };
+  const jp = document.getElementById("btn-join-play");
+  if (jp) jp.onclick = () => send(P.mJoinRoom(S.room.code, localStorage.getItem("pop_room_pass")));
   document.getElementById("btn-ready").onclick = () => {
     const me = S.room && S.room.players.find((p) => p.id === S.myId);
     send(P.mReady(!(me && me.ready)));
