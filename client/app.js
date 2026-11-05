@@ -10,7 +10,7 @@ const I18N = {
     connecting: "подключение…", online: "сервер онлайн", offline: "сервер недоступен, переподключение…",
     roomName: "название комнаты", roomPass: "пароль (необязательно)", create: "Создать",
     joinCode: "код комнаты", joinPass: "пароль", joinByCode: "Войти по коду", refresh: "↻ обновить",
-    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", start: "▶ Старт", leave: "Выйти",
+    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти",
     bots: "Боты:", botLazy: "+ Лентяй", botNormal: "+ Обычный", botPro: "+ Профи",
     hint: "мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции",
     noRooms: "Пока нет комнат — создайте первую!", enter: "Войти", inProgress: "▶ идёт матч", lobbySt: "лобби",
@@ -18,13 +18,13 @@ const I18N = {
     level: "ур.", chatPh: "сообщение…", victory: "🏆 ПОБЕДА!", gameOver: "ИГРА ОКОНЧЕНА",
     backToLobby: "Комната вернулась в лобби…", nameTaken: "ник занят, выберите другой",
     nameQuota: "ник: 1–16 символов",
-    winTitle: "🏆 ПОБЕДА!", loseTitle: "ИГРА ОКОНЧЕНА", exhausted: "ВОЛНА ИСЧЕРПАНА",
+    winTitle: "🏆 ПОБЕДА!", loseTitle: "ИГРА ОКОНЧЕНА", exhausted: "ВОЛНА ИСЧЕРПАНА", topEmpty: "сыграйте матч — и вы здесь", refreshTop: "↻ обновить топ",
   },
   en: {
     connecting: "connecting…", online: "server online", offline: "server unreachable, reconnecting…",
     roomName: "room name", roomPass: "password (optional)", create: "Create",
     joinCode: "room code", joinPass: "password", joinByCode: "Join by code", refresh: "↻ refresh",
-    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", start: "▶ Start", leave: "Leave",
+    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave",
     bots: "Bots:", botLazy: "+ Lazy", botNormal: "+ Normal", botPro: "+ Pro",
     hint: "mouse — paddle · click/space — launch · 1–8 — emotes",
     noRooms: "No rooms yet — create the first one!", enter: "Join", inProgress: "▶ playing", lobbySt: "lobby",
@@ -32,7 +32,7 @@ const I18N = {
     level: "lvl", chatPh: "message…", victory: "🏆 VICTORY!", gameOver: "GAME OVER",
     backToLobby: "Room is back to lobby…", nameTaken: "nickname taken, pick another",
     nameQuota: "nickname: 1–16 chars",
-    winTitle: "🏆 VICTORY!", loseTitle: "GAME OVER", exhausted: "WAVE EXHAUSTED",
+    winTitle: "🏆 VICTORY!", loseTitle: "GAME OVER", exhausted: "WAVE EXHAUSTED", topEmpty: "play a match — you will be here", refreshTop: "↻ refresh top",
   },
 };
 let leaderboardShown = false;
@@ -233,7 +233,7 @@ function onSnapshot(s) {
 function showScreen(name) {
   for (const s of ["menu", "room", "game"]) document.getElementById("screen-" + s).style.display = s === name ? "block" : "none";
   document.getElementById("over").style.display = "none";
-  if (name === "menu") { leaderboardShown = false; send(P.mRoomList()); }
+  if (name === "menu") { leaderboardShown = false; send(P.mRoomList()); if (window.__loadTop) window.__loadTop(); }
   if (name === "room") renderRoom();
   if (name === "game") {
     // поле всегда в зоне видимости: матч начался или реконнект — не заставляем листать
@@ -560,8 +560,10 @@ function entityAt(buf, renderTime, id, get) {
   if (!eb || ea === eb) return ea;
   const span = Math.max(1, b.recv - a.recv);
   const t = Math.min(1, Math.max(0, (renderTime - a.recv) / span));
-  const prevA = ia > 0 ? get(buf[ia - 1].snap) : null;
-  const nextB = ia + 2 < buf.length ? get(buf[ia + 2].snap) : null;
+  const prevBuf = ia > 0 ? buf[ia - 1] : null;
+  const nextBuf = ia + 2 < buf.length ? buf[ia + 2] : null;
+  const prevA = prevBuf ? get(prevBuf.snap) : null;
+  const nextB = nextBuf ? get(nextBuf.snap) : null;
   const herm = (xa, xb, va, vb) => {
     const t2 = t * t, t3 = t2 * t;
     const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t;
@@ -572,10 +574,10 @@ function entityAt(buf, renderTime, id, get) {
     if (Math.abs(v - lin) > 9) v = lin;
     return v;
   };
-  const dxa = prevA ? (eb.x - prevA.x) / Math.max(1, b.recv - prevA.recv) : (eb.x - ea.x) / span;
-  const dxb = nextB ? (nextB.x - ea.x) / Math.max(1, nextB.recv - a.recv) : (eb.x - ea.x) / span;
-  const dya = prevA ? (eb.y - prevA.y) / Math.max(1, b.recv - prevA.recv) : (eb.y - ea.y) / span;
-  const dyb = nextB ? (nextB.y - ea.y) / Math.max(1, nextB.recv - a.recv) : (eb.y - ea.y) / span;
+  const dxa = prevA ? (eb.x - prevA.x) / Math.max(1, b.recv - prevBuf.recv) : (eb.x - ea.x) / span;
+  const dxb = nextB ? (nextB.x - ea.x) / Math.max(1, nextBuf.recv - a.recv) : (eb.x - ea.x) / span;
+  const dya = prevA ? (eb.y - prevA.y) / Math.max(1, b.recv - prevBuf.recv) : (eb.y - ea.y) / span;
+  const dyb = nextB ? (nextB.y - ea.y) / Math.max(1, nextBuf.recv - a.recv) : (eb.y - ea.y) / span;
   return { ...eb, x: herm(ea.x, eb.x, dxa, dxb), y: herm(ea.y, eb.y, dya, dyb) };
 }
 
@@ -621,28 +623,12 @@ function drawBubbles(W, H) {
   }
 }
 
-function render() {
-  if (!g) return;
-  g.clear();
-  if (!S.latest) { drawIdleTitle(); return; }
-  // адаптивная задержка: 1.6 интервала снапшотов, зажата в 50–140 мс
-  const delay = Math.min(140, Math.max(50, (S.snapInt || 100) * 1.6));
-  const rt = performance.now() - delay;
-  const buf = S.snapBuf.length ? S.snapBuf : [{ recv: 0, snap: S.latest }];
-  const W = S.latest.field_w, H = S.latest.field_h;
-  const bossNow = !!S.latest.boss;
-  if (S.bgDirty || bossNow !== S.bgBoss) drawBackgroundCache(W, H);
-  drawBubbles(W, H);
-
-  // кирпичи — в кэше brickG (см. drawBricksCache)
-  if (S.bricksDirty || S.brickBorn.size > 0) drawBricksCache(W);
 function drawBricksCache(W) {
   const bg = window.__brickG;
   bg.clear();
   for (const b of S.bricks.values()) {
     const cellw = W / 10;
     let x = b.c * cellw + 3, y = GRID_TOP + b.r * CELL_H + 3, w = cellw - 6, h = CELL_H - 6;
-    // появление нового кирпича: мягкий pop с перелётом
     const born = S.brickBorn.get(b.id);
     if (born !== undefined) {
       const age = (performance.now() - born) / 260;
@@ -662,10 +648,9 @@ function drawBricksCache(W) {
     bg.roundRect(x + 3, y + 2.5, w - 6, 5, 2.5).fill({ color: 0xffffff, alpha: 0.8 });
     bg.circle(x + 7, y + 7, 2.5).fill({ color: 0xffffff, alpha: 0.9 });
     bg.roundRect(x, y, w, h, 7).stroke({ color: 0xffffff, width: 1.5, alpha: 0.55 });
-    // трещины детерминированы по id кирпича
     for (let k = 0; k < cracks; k++) {
-      let cx = x + 8 + ((b.id * 7 + k * 29) % (w - 16));
-      let cy = y + 4 + ((b.id * 13 + k * 7) % (h - 8));
+      let cx = x + 8 + ((b.id * 7 + k * 29) % Math.max(1, w - 16));
+      let cy = y + 4 + ((b.id * 13 + k * 7) % Math.max(1, h - 8));
       bg.moveTo(cx, cy);
       for (let j = 0; j < 3; j++) {
         cx += ((b.id * 11 + k * 17 + j * 31) % 15) - 7;
@@ -678,16 +663,27 @@ function drawBricksCache(W) {
   S.bricksDirty = false;
 }
 
-  // Тьма: гасим поле — мячи и ракетки рисуются поверх и остаются видны
+function render() {
+  if (!g) return;
+  g.clear();
+  if (!S.latest) { drawIdleTitle(); return; }
+  const delay = Math.min(140, Math.max(50, (S.snapInt || 100) * 1.6));
+  const rt = performance.now() - delay;
+  const buf = S.snapBuf.length ? S.snapBuf : [{ recv: 0, snap: S.latest }];
+  const W = S.latest.field_w, H = S.latest.field_h;
+
+  const bossNow = !!S.latest.boss;
+  if (S.bgDirty || bossNow !== S.bgBoss) drawBackgroundCache(W, H);
+  if (S.bricksDirty || S.brickBorn.size > 0) drawBricksCache(W);
+  drawBubbles(W, H);
+
   if ((S.latest.events || []).some((ev) => ev.event === 1)) {
     g.rect(0, 0, W, H).fill({ color: 0x1a1530, alpha: 0.78 });
   }
-  // Щит земли: зелёная линия над полом
   if ((S.latest.events || []).some((ev) => ev.event === 8)) {
     g.rect(0, H - 20, W, 5).fill(0x1dd1a1);
   }
 
-  // БОСС: тело, HP-бар, щиты, снаряды (позиция с интерполяцией)
   const boss = S.latest.boss;
   if (boss) {
     const [bossA, bossB, bossK] = interpPair(buf, rt, (s0) => s0.boss ? [s0.boss] : []);
@@ -695,20 +691,15 @@ function drawBricksCache(W) {
     const by = bossA && bossB && bossB === S.latest.boss ? lerp(bossA[0].y, boss.y, bossK) : boss.y;
     const KIND_COLORS = [[0x8e7cf3, 0x5a3fd6], [0x7ed6f5, 0x2b7bb5], [0xffb03a, 0xf0640f]];
     const [bc1, bc2] = KIND_COLORS[boss.kind] || KIND_COLORS[0];
-    // HP-бар сверху
     const bw = W * 0.6;
     g.rect((W - bw) / 2, 12, bw, 12).fill({ color: 0x2f2b44 });
     const frac = Math.max(0, boss.hp / boss.max_hp);
     g.rect((W - bw) / 2, 12, bw * frac, 12).fill(boss.phase ? 0xff6b6b : 0x1dd1a1);
-    // тело: дышит; в ярости пульсирует часто и красно, с аурой
     const time = performance.now() / 1000;
     const pulse = boss.phase ? 2.6 * Math.sin(time * 10) : 1.4 * Math.sin(time * 3);
-    if (boss.phase) {
-      g.circle(bx, by, 52 + 4 * Math.sin(time * 10)).fill({ color: 0xff6b6b, alpha: 0.22 });
-    }
+    if (boss.phase) g.circle(bx, by, 52 + 4 * Math.sin(time * 10)).fill({ color: 0xff6b6b, alpha: 0.22 });
     g.circle(bx, by, 42).fill(bc2);
     g.circle(bx, by, 30 + pulse).fill(boss.phase ? 0xff6b6b : bc1);
-    // снаряды (интерполяция по индексу)
     const [prA, prB, prK] = interpPair(buf, rt, (s0) => s0.projs || []);
     for (const p of S.latest.projs || []) {
       const pp = prA && prB && prA.length === prB.length && prB === S.latest.projs ? prA[S.latest.projs.indexOf(p)] : null;
@@ -719,9 +710,7 @@ function drawBricksCache(W) {
     }
   }
 
-  // капсулы-бонусы (с интерполяцией по индексу)
   const CAPSULE_COLORS = [0xe84393, 0x10ac84, 0xee7724, 0x4a69bd, 0xe0181d];
-  const CAPSULE_LABELS = ["M", "W", "L", "S", "♥"];
   const [capsA, capsB, capK] = interpPair(buf, rt, (s0) => s0.capsules || []);
   for (const cp of S.latest.capsules || []) {
     const pp = capsA && capsB && capsA.length === capsB.length && capsB === S.latest.capsules ? capsA[S.latest.capsules.indexOf(cp)] : null;
@@ -730,7 +719,6 @@ function drawBricksCache(W) {
     g.roundRect(x - 13, y - 11, 26, 22, 8).fill(CAPSULE_COLORS[cp.kind] || 0xfeca57);
     g.roundRect(x - 13, y - 11, 26, 22, 8).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
   }
-  // пули лазера (интерполяция)
   const [bulA, bulB, bulK] = interpPair(buf, rt, (s0) => s0.bullets || []);
   for (const u of S.latest.bullets || []) {
     const pp = bulA && bulB && bulA.length === bulB.length && bulB === S.latest.bullets ? bulA[S.latest.bullets.indexOf(u)] : null;
@@ -738,7 +726,6 @@ function drawBricksCache(W) {
     g.roundRect(u.x - 2.5, y - 12, 5, 14, 2.5).fill(0xee7724);
   }
 
-  // ракетки: своя — с предсказанием (нулевая задержка), чужие — Эрмит
   const nowMs = performance.now();
   const dtS = Math.min(0.05, (nowMs - (S.lastFrame || nowMs)) / 1000);
   S.lastFrame = nowMs;
@@ -746,25 +733,22 @@ function drawBricksCache(W) {
     let e = entityAt(buf, rt, p.id, (s) => s.players.find((q) => q.id === p.id));
     if (!e) continue;
     if (p.id === S.myId && S.paddleX !== null && p.state !== 2) {
-      // предсказание: ракетка едет к цели со скоростью сервера — расхождение ~0
       const half = e.w / 2;
       const target = Math.min(S.latest.field_w - half, Math.max(half, S.inputX));
       S.paddleX += Math.max(-760 * dtS, Math.min(760 * dtS, target - S.paddleX));
       e = { ...e, x: S.paddleX };
     }
     const base = COLORS[((playerInfo(p.id) || {}).color || 0) % COLORS.length];
-    const color = p.state === 2 ? 0x9aa5b1 : base; // стан — серая ракетка
+    const color = p.state === 2 ? 0x9aa5b1 : base;
     const py = H - 42;
     g.roundRect(e.x - e.w / 2, py, e.w, PADDLE_H, PADDLE_H / 2).fill(color);
     g.roundRect(e.x - e.w / 2 + 4, py + 2, e.w - 8, 4, 2).fill({ color: 0xffffff, alpha: 0.5 });
   }
 
-  // мячи: шлейф + объёмный вид
   for (const b of S.latest.balls) {
     const e = entityAt(buf, rt, b.id, (s) => s.balls.find((q) => q.id === b.id));
     if (!e) { S.trails.delete(b.id); continue; }
     const color = COLORS[((playerInfo(b.owner_id) || {}).color ?? 5) % COLORS.length];
-    // шлейф: последние позиции с затуханием
     let tr = S.trails.get(b.id);
     if (!tr) { tr = []; S.trails.set(b.id, tr); }
     tr.push({ x: e.x, y: e.y });
@@ -773,7 +757,6 @@ function drawBricksCache(W) {
       const f = (i + 1) / tr.length;
       g.circle(tr[i].x, tr[i].y, BALL_R * (0.3 + 0.6 * f)).fill({ color, alpha: 0.3 * f });
     }
-    // объём: свечение -> тёмная кайма -> тело -> тень снизу -> блик сверху-слева
     g.circle(e.x, e.y, BALL_R * 1.9).fill({ color, alpha: 0.16 });
     g.circle(e.x, e.y, BALL_R * 1.35).fill({ color, alpha: 0.22 });
     g.circle(e.x, e.y, BALL_R).fill({ color: 0xffffff, alpha: 0.95 });
@@ -782,7 +765,6 @@ function drawBricksCache(W) {
     g.circle(e.x - 3, e.y - 3.5, 3).fill({ color: 0xffffff, alpha: 0.95 });
     g.circle(e.x - 1.2, e.y - 1.8, 1.4).fill({ color: 0xffffff, alpha: 0.7 });
   }
-  // чистим шлейфы исчезнувших мячей
   if (S.trails.size > S.latest.balls.length * 2) {
     const ids = new Set(S.latest.balls.map((b) => b.id));
     for (const id of S.trails.keys()) if (!ids.has(id)) S.trails.delete(id);
@@ -898,15 +880,18 @@ window.addEventListener("DOMContentLoaded", async () => {
     send(P.mCreateRoom(name, pass || null, mode, { max_players: 10, events_enabled: true, bosses_enabled: true, speed_factor: 1.0 }));
   };
   document.getElementById("btn-refresh").onclick = () => send(P.mRoomList());
-  document.getElementById("btn-leaderboard").onclick = async () => {
-    const box = document.getElementById("rooms");
+  const loadTop = async () => {
+    const box = document.getElementById("top-list");
     try {
       const top = await fetch("/api/leaderboard").then((r) => r.json());
+      box.classList.remove("muted");
       box.innerHTML = top.length
-        ? top.map((e, i) => `<div class="room-row"><b>${i + 1}. ${escapeHtml(e.name)}</b><span class="muted">${e.xp} XP</span></div>`).join("")
-        : `<div class='muted'>${t("noRooms")}</div>`;
-    } catch { box.innerHTML = "<div class='muted'>…</div>"; }
+        ? top.map((e, i) => `<div class="room-row"><b>${i + 1}. ${escapeHtml(e.name)}</b><span class="muted">${e.xp} XP · lvl ${Math.floor(e.xp / 100) + 1}</span></div>`).join("")
+        : `<span class="muted">${t("topEmpty")}</span>`;
+    } catch { box.innerHTML = "<span class='muted'>…</span>"; }
   };
+  document.getElementById("btn-leaderboard").onclick = loadTop;
+  window.__loadTop = loadTop;
   document.getElementById("btn-lang").onclick = () => {
     LANG = LANG === "ru" ? "en" : "ru";
     localStorage.setItem("pop_lang", LANG);
