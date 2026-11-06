@@ -204,7 +204,7 @@ function onSnapshot(s) {
     const b = S.bricks.get(id);
     if (b) {
       const cellw = s.field_w / 10;
-      const col = BRICK_COLORS[S.brickMax.get(id)] || BRICK_COLORS[1];
+      const col = BRICK_COLORS[S.brickMax.get(id)] || BRICK_COLORS[1] || BRICK_COLORS[0] || [0xffffff, 0xffffff];
       spawnRing(b.c * cellw + cellw / 2, GRID_TOP + b.r * CELL_H + 13, col[0], 30);
       if (S.particlesOn) spawnBurst(b.c, b.r);
       sfxBrick();
@@ -528,11 +528,13 @@ const sfxLaunch = () => { tone(420, 0.08, "triangle", 0.03, 880); };
 /* ---------- частицы (локальный сок, автоотключение при низком FPS) ---------- */
 const PARTICLE_CAP = 150;
 function spawnRing(x, y, color, maxR) {
+  if (!Number.isFinite(color)) color = 0xffffff;
   if (!S.particlesOn) return;
   if (S.particles.length >= PARTICLE_CAP) S.particles.shift();
   S.particles.push({ ring: true, x, y, t: 0, life: 0.38, color, maxR: maxR || 30 });
 }
 function spawnFirework(x, y, color, label) {
+  if (!Number.isFinite(color)) color = 0xff9ff3;
   if (S.particlesOn) {
     for (let i = 0; i < 26; i++) {
       const a = Math.random() * Math.PI * 2, v = 90 + Math.random() * 220;
@@ -544,6 +546,7 @@ function spawnFirework(x, y, color, label) {
   if (label) floatText(x, y - 40, label, color);
 }
 function floatText(x, y, text, color) {
+  if (!Number.isFinite(color)) color = 0xffffff;
   const obj = new PIXI.Text({
     text,
     style: { fontFamily: "Comic Sans MS, sans-serif", fontSize: 26, fontWeight: "bold", fill: color, stroke: { color: 0xffffff, width: 4 } },
@@ -583,7 +586,8 @@ function drawParticles() {
   for (const p of S.particles) {
     const a = 1 - p.t / p.life;
     if (p.ring) {
-      g.circle(p.x, p.y, p.maxR * (p.t / p.life)).stroke({ color: p.color, width: 3, alpha: a * 0.9 });
+      const rc = Number.isFinite(p.color) ? p.color : 0xffffff;
+      g.circle(p.x, p.y, p.maxR * (p.t / p.life)).stroke({ color: rc, width: 3, alpha: a * 0.9 });
     } else {
       g.circle(p.x, p.y, p.size * a).fill({ color: 0xff9ff3, alpha: a });
     }
@@ -913,6 +917,8 @@ function render() {
   for (const b of S.latest.balls) {
     const e = entityAt(buf, rt, b.id, (s) => s.balls.find((q) => q.id === b.id));
     if (!e) { S.trails.delete(b.id); continue; }
+    // ушедший за нижнюю кромку мяч не рисуем: без «призрака» под ракеткой
+    if (e.y > H + 10) { S.trails.delete(b.id); continue; }
     const color = pcolor((playerInfo(b.owner_id) || {}).color);
     curBalls.set(b.id, { x: e.x, y: e.y, color });
     // мой прилипший мяч клеится к предсказанной ракетке — ноль отставания
@@ -975,13 +981,14 @@ function bindInput() {
   const canvas = () => document.querySelector("#canvas-holder canvas");
   document.addEventListener("pointermove", (e) => {
     const c = canvas();
-    if (!c || document.getElementById("screen-game").style.display === "none") return;
+    if (!c || !S.latest || document.getElementById("screen-game").style.display === "none") return;
     const rect = c.getBoundingClientRect();
+    if (!rect.width) return;
     S.inputX = (e.clientX - rect.left) / rect.width * S.latest.field_w;
     throttledPaddle();
   });
   document.addEventListener("pointerdown", (e) => {
-    if (document.getElementById("screen-game").style.display === "none") return;
+    if (!S.latest || document.getElementById("screen-game").style.display === "none") return;
     if (e.target.closest("button")) return;
     send(P.mAction());
   });
