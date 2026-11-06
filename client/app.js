@@ -10,7 +10,7 @@ const I18N = {
     connecting: "подключение…", online: "сервер онлайн", offline: "сервер недоступен, переподключение…",
     roomName: "название комнаты", roomPass: "пароль (необязательно)", create: "Создать",
     joinCode: "код комнаты", joinPass: "пароль", joinByCode: "Войти по коду", refresh: "↻ обновить",
-    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти",
+    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком",
     bots: "Боты:", botLazy: "+ Лентяй", botNormal: "+ Обычный", botPro: "+ Профи",
     hint: "мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции",
     noRooms: "Пока нет комнат — создайте первую!", enter: "Войти", inProgress: "▶ идёт матч", lobbySt: "лобби",
@@ -24,7 +24,7 @@ const I18N = {
     connecting: "connecting…", online: "server online", offline: "server unreachable, reconnecting…",
     roomName: "room name", roomPass: "password (optional)", create: "Create",
     joinCode: "room code", joinPass: "password", joinByCode: "Join by code", refresh: "↻ refresh",
-    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave",
+    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player",
     bots: "Bots:", botLazy: "+ Lazy", botNormal: "+ Normal", botPro: "+ Pro",
     hint: "mouse — paddle · click/space — launch · 1–8 — emotes",
     noRooms: "No rooms yet — create the first one!", enter: "Join", inProgress: "▶ playing", lobbySt: "lobby",
@@ -39,6 +39,9 @@ let leaderboardShown = false;
 let LANG = localStorage.getItem("pop_lang") || (navigator.language || "ru").slice(0, 2);
 if (!I18N[LANG]) LANG = "ru";
 const t = (k) => I18N[LANG][k] ?? I18N.ru[k] ?? k;
+
+// цвет из палитры с числовым guard'ом (защита от undefined в переходные кадры)
+function pcolor(v) { return COLORS[Number.isFinite(v) ? v % COLORS.length : 5]; }
 
 /* ---------- экран загрузки / переподключения ---------- */
 function showLoading(reconnecting) {
@@ -910,7 +913,7 @@ function render() {
   for (const b of S.latest.balls) {
     const e = entityAt(buf, rt, b.id, (s) => s.balls.find((q) => q.id === b.id));
     if (!e) { S.trails.delete(b.id); continue; }
-    const color = COLORS[((playerInfo(b.owner_id) || {}).color ?? 5) % COLORS.length];
+    const color = pcolor((playerInfo(b.owner_id) || {}).color);
     curBalls.set(b.id, { x: e.x, y: e.y, color });
     // мой прилипший мяч клеится к предсказанной ракетке — ноль отставания
     const glued = b.owner_id === S.myId && e.y > H - 80 && S.paddleX !== null;
@@ -1106,6 +1109,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     S.room = null;
     localStorage.removeItem("pop_room_code");
     showScreen("menu");
+  };
+  document.getElementById("btn-exit").onclick = () => {
+    send(P.mLeave());
+    S.room = null;
+    S.overUntil = 0; S.overPending = false;
+    localStorage.removeItem("pop_room_code");
+    showScreen("menu");
+    if (window.__loadTop) window.__loadTop();
   };
   document.getElementById("btn-sound").onclick = toggleMusic;
   document.getElementById("btn-bot-lazy").onclick = () => send(P.mAddBot(0));
