@@ -79,6 +79,10 @@ pub enum GameCmd {
         player_id: u32,
         x: f32,
     },
+    /// Активация ульты игроком.
+    Ultimate {
+        player_id: u32,
+    },
     Action {
         player_id: u32,
     },
@@ -127,6 +131,10 @@ struct MatchPlayer {
     launch_wait: f32,
     is_bot: bool,
     bot_level: Option<BotLevel>,
+    /// Выбранная ульта: 0 нет, 1 лед, 2 метеорит, 3 магнит.
+    ult: u8,
+    /// Заряды ульты (комбо-вехи), максимум 2.
+    ult_charge: u8,
 }
 
 pub struct Game {
@@ -169,7 +177,7 @@ pub struct Game {
 impl Game {
     /// Новая игра: N игроков на поле шириной от N, свой мяч у каждого.
     pub fn new(
-        players: Vec<(u32, String, Option<BotLevel>)>,
+        players: Vec<(u32, String, Option<BotLevel>, u8)>,
         speed_factor: f32,
         events_enabled: bool,
         mode: GameMode,
@@ -194,7 +202,7 @@ impl Game {
         let mp: Vec<MatchPlayer> = players
             .iter()
             .enumerate()
-            .map(|(slot, (id, name, bot_level))| MatchPlayer {
+            .map(|(slot, (id, name, bot_level, ult))| MatchPlayer {
                 player_id: *id,
                 name: name.clone(),
                 slot,
@@ -216,6 +224,8 @@ impl Game {
                 launch_wait: 0.3,
                 is_bot: bot_level.is_some(),
                 bot_level: *bot_level,
+                ult: *ult,
+                ult_charge: 0,
             })
             .collect();
         // Ракетки распределяются равномерно по нижней линии.
@@ -224,7 +234,7 @@ impl Game {
             field.add_paddle(x);
         }
         // Свой мяч у каждого (спецификация §4).
-        for (slot, (id, _, _)) in players.iter().enumerate() {
+        for (slot, (id, _, _, _)) in players.iter().enumerate() {
             let x = field.paddles[slot].x;
             field.add_ball(*id, x, FIELD_H - 42.0 - READY_BALL_OFFSET);
         }
@@ -561,6 +571,31 @@ impl Game {
                     self.field.set_paddle_target(slot, x);
                 }
             }
+            GameCmd::Ultimate { player_id } => {
+                let (ult, charge) = match self.players.iter().find(|p| p.player_id == player_id) {
+                    Some(p) => (p.ult, p.ult_charge),
+                    None => return,
+                };
+                if ult == 0 || charge == 0 {
+                    return;
+                }
+                let t = self.field.ticks;
+                const ULT_TICKS: u32 = 360; // 6 с при 60 Гц
+                match ult {
+                    1 => {
+                        self.field.ice_until = t + ULT_TICKS;
+                        if self.field.frozen_tick.is_none() {
+                            self.field.frozen_tick = Some(t);
+                        }
+                    }
+                    2 => self.field.meteor_until = t + ULT_TICKS,
+                    3 => self.field.magnet_until = t + ULT_TICKS,
+                    _ => return,
+                }
+                if let Some(p) = self.players.iter_mut().find(|p| p.player_id == player_id) {
+                    p.ult_charge -= 1;
+                }
+            }
             GameCmd::Action { player_id } => {
                 let Some(p) = self.players.iter().find(|p| p.player_id == player_id) else {
                     return;
@@ -856,8 +891,26 @@ impl Game {
     fn step_capsules(&mut self, dt: f32) {
         let h = self.field.h;
         let paddle_y = h - 42.0;
+        // магнит: капсулы стягиваются к ближайшей живой ракетке
+        let magnet = self.field.magnet_until > self.field.ticks;
         for cp in self.capsules.iter_mut() {
             cp.y += CAPSULE_FALL_SPEED * dt;
+            if magnet {
+                if let Some(px) = self
+                    .players
+                    .iter()
+                    .filter(|p| p.connected && p.lives > 0)
+                    .map(|p| self.field.paddles[p.slot].x)
+                    .min_by(|a, b| {
+                        ((*a - cp.x).abs())
+                            .partial_cmp(&(*b - cp.x).abs())
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                {
+                    let dx = (px - cp.x).clamp(-90.0 * dt, 90.0 * dt);
+                    cp.x += dx;
+                }
+            }
         }
         let caps = std::mem::take(&mut self.capsules);
         let mut caught: Vec<(usize, u8)> = vec![];
@@ -1067,6 +1120,10 @@ impl Game {
                 p.score += 10 * mult * p.combo as u32;
                 p.bricks += 1;
                 p.max_combo = p.max_combo.max(p.combo as u32);
+                // вехи комбо ×5 заряжают ульту (максимум 2 заряда)
+                if p.combo % 5 == 0 && p.ult > 0 {
+                    p.ult_charge = (p.ult_charge + 1).min(2);
+                }
             }
             if self.next_rand() < self.capsule_chance {
                 self.spawn_capsule(ev.c, ev.r);
@@ -1324,6 +1381,7 @@ impl Game {
                 } else {
                     PlayerState::Alive
                 },
+                ult_charge: p.ult_charge,
             })
             .collect();
 
@@ -1410,6 +1468,7 @@ impl Game {
                         .collect()
                 })
                 .unwrap_or_default(),
+            fx: self.field.fx_mask(),
         }
     }
 }
@@ -1420,6 +1479,7 @@ fn brick_snap(b: &Brick) -> popproto_core::BrickSnap {
         c: b.c,
         r: b.r,
         hp: if b.stone { 255 } else { b.hp },
+        kind: b.kind,
     }
 }
 
@@ -1428,7 +1488,7 @@ fn brick_snap(b: &Brick) -> popproto_core::BrickSnap {
 pub fn spawn(
     lobby: Lobby,
     room_id: u32,
-    players: Vec<(u32, String, Option<BotLevel>)>,
+    players: Vec<(u32, String, Option<BotLevel>, u8)>,
     speed_factor: f32,
     events_enabled: bool,
     mode: GameMode,
@@ -1471,7 +1531,7 @@ mod tests {
     use super::*;
 
     fn one_player_game() -> Game {
-        Game::new(vec![(1, "Тима".into(), None)], 1.0, true, GameMode::Coop)
+        Game::new(vec![(1, "Тима".into(), None, 0)], 1.0, true, GameMode::Coop)
     }
 
     #[test]
@@ -1715,14 +1775,59 @@ mod tests {
     }
 
     #[test]
+    fn ultimate_meteor_pierces_and_spends_charge() {
+        let mut g = Game::new(vec![(1, "Т".into(), None, 2)], 1.0, false, GameMode::Coop);
+        assert!(g.field.bricks.len() > 3, "есть кирпичи для пробоя");
+        let p = g.players.iter_mut().find(|p| p.player_id == 1).unwrap();
+        p.ult_charge = 1;
+        g.handle_cmd(GameCmd::Ultimate { player_id: 1 });
+        assert!(g.field.meteor_until > g.field.ticks, "метеорит активен");
+        assert_eq!(
+            g.players
+                .iter()
+                .find(|p| p.player_id == 1)
+                .unwrap()
+                .ult_charge,
+            0,
+            "заряд потрачен"
+        );
+        // повторная активация без заряда — ничего не ломает
+        g.handle_cmd(GameCmd::Ultimate { player_id: 1 });
+        assert!(g.field.meteor_until > g.field.ticks);
+    }
+
+    #[test]
+    fn ultimate_ice_freezes_movers_and_brittle() {
+        let mut g = Game::new(vec![(1, "Т".into(), None, 1)], 1.0, false, GameMode::Coop);
+        g.field.grid_clear();
+        g.field
+            .add_brick_kind(4, 2, 2, false, popproto_core::BK_MOVING);
+        let p = g.players.iter_mut().find(|p| p.player_id == 1).unwrap();
+        p.ult_charge = 1;
+        g.handle_cmd(GameCmd::Ultimate { player_id: 1 });
+        assert!(g.field.ice_until > g.field.ticks);
+        assert!(g.field.frozen_tick.is_some(), "движущиеся заморожены");
+        let off0 = g.field.moving_offset(2);
+        for _ in 0..10 {
+            g.tick(1.0 / TICK_HZ as f32);
+        }
+        assert!(
+            (g.field.moving_offset(2) - off0).abs() < 1e-4,
+            "смещение не меняется во льду"
+        );
+        assert_eq!(g.field.fx_mask() & 1, 1, "бит льда в снапшоте");
+    }
+
+    #[test]
     fn bot_seat_launches_by_itself() {
         let mut g = Game::new(
             vec![
-                (1, "Тима".into(), None),
+                (1, "Тима".into(), None, 0),
                 (
                     popproto_core::BOT_ID_BASE,
                     "Бот·Профи".into(),
                     Some(BotLevel::Pro),
+                    0,
                 ),
             ],
             1.0,
@@ -1801,7 +1906,12 @@ mod tests {
 
     #[test]
     fn boss_rush_chains_bosses_and_victory() {
-        let mut g = Game::new(vec![(1, "Т".into(), None)], 1.0, false, GameMode::BossRush);
+        let mut g = Game::new(
+            vec![(1, "Т".into(), None, 0)],
+            1.0,
+            false,
+            GameMode::BossRush,
+        );
         assert!(g.boss.is_some(), "босс-раш стартует сразу с босса");
         assert!(g.field.bricks.is_empty(), "арена без кирпичей");
         let first_kind = g.boss.as_ref().unwrap().kind;
@@ -1848,7 +1958,7 @@ mod tests {
 
     #[test]
     fn wave_feeds_bricks_endlessly() {
-        let mut g = Game::new(vec![(1, "Т".into(), None)], 1.0, false, GameMode::Wave);
+        let mut g = Game::new(vec![(1, "Т".into(), None, 0)], 1.0, false, GameMode::Wave);
         g.field.bricks.clear();
         g.field.grid_clear();
         g.handle_cmd(GameCmd::Action { player_id: 1 });
@@ -1886,12 +1996,13 @@ mod tests {
     #[test]
     fn bots_actually_score_and_survive() {
         // 6 ботов-профи: каждый ведёт СВОЙ мяч и набирает очки
-        let roster: Vec<(u32, String, Option<BotLevel>)> = (0..6)
+        let roster: Vec<(u32, String, Option<BotLevel>, u8)> = (0..6)
             .map(|i| {
                 (
                     popproto_core::BOT_ID_BASE + i as u32,
                     format!("Бот{}", i),
                     Some(BotLevel::Pro),
+                    0,
                 )
             })
             .collect();
@@ -1925,7 +2036,7 @@ mod tests {
     #[test]
     fn bench_tick_cost() {
         // 10 игроков (2 бота + 8 человек без ввода): худший случай по числу сущностей
-        let roster: Vec<(u32, String, Option<BotLevel>)> = (0..10)
+        let roster: Vec<(u32, String, Option<BotLevel>, u8)> = (0..10)
             .map(|i| {
                 let id = if i < 2 {
                     popproto_core::BOT_ID_BASE + i as u32
@@ -1936,6 +2047,7 @@ mod tests {
                     id,
                     format!("И{}", i),
                     if i < 2 { Some(BotLevel::Pro) } else { None },
+                    0,
                 )
             })
             .collect();
@@ -1964,7 +2076,12 @@ mod tests {
     /* ---------- тесты боссов ---------- */
 
     fn boss_game() -> Game {
-        let mut g = Game::new(vec![(1, "Тима".into(), None)], 1.0, false, GameMode::Coop);
+        let mut g = Game::new(
+            vec![(1, "Тима".into(), None, 0)],
+            1.0,
+            false,
+            GameMode::Coop,
+        );
         g.field.load_level(1); // любой обычный старт
         g
     }
@@ -2186,7 +2303,12 @@ mod tests {
     /* ---------- тесты евентов ---------- */
 
     fn game_no_events() -> Game {
-        Game::new(vec![(1, "Тима".into(), None)], 1.0, false, GameMode::Coop)
+        Game::new(
+            vec![(1, "Тима".into(), None, 0)],
+            1.0,
+            false,
+            GameMode::Coop,
+        )
     }
 
     #[test]
@@ -2288,7 +2410,7 @@ mod tests {
     #[test]
     fn double_ball_gives_second_ball() {
         let mut g = Game::new(
-            vec![(1, "А".into(), None), (2, "Б".into(), None)],
+            vec![(1, "А".into(), None, 0), (2, "Б".into(), None, 0)],
             1.0,
             false,
             GameMode::Coop,

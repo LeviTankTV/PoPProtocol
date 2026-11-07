@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::MAX_PLAYERS;
 
-pub const PROTOCOL_VERSION: u16 = 5;
+pub const PROTOCOL_VERSION: u16 = 6;
 
 /// Синтетические id ботов: диапазон не пересекается с id игроков из БД.
 pub const BOT_ID_BASE: u32 = 0xF000_0000;
@@ -68,6 +68,12 @@ pub enum ClientMsg {
     SetColor {
         color: u8,
     },
+    /// Выбрать ульту перед матчем: 0 нет, 1 ледяная волна, 2 метеорит, 3 магнит.
+    SetUltimate {
+        ult: u8,
+    },
+    /// Активировать ульту в бою (нужен заряд от комбо).
+    UseUltimate,
 }
 
 /* ---------- сервер -> клиент ---------- */
@@ -206,6 +212,8 @@ pub struct PlayerInfo {
     pub xp: u32,
     /// Соединение живо (после обрыва игрок остаётся в слоте на окно реконнекта).
     pub online: bool,
+    /// Выбранная ульта: 0 нет, 1 ледяная волна, 2 метеорит, 3 магнит.
+    pub ult: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -266,6 +274,8 @@ pub struct Snapshot {
     pub combo: Vec<ComboSnap>,
     /// Очки и жизни игроков каждый тик (для HUD).
     pub scores: Vec<ScoreSnap>,
+    /// Активные эффекты поля битмаской: 1 лед, 2 метеорит, 4 магнит.
+    pub fx: u8,
     /// Снаряды босса, летящие в ракетки (стан/заморозка).
     pub projs: Vec<ProjSnap>,
 }
@@ -301,6 +311,8 @@ pub struct PlayerSnap {
     pub x: u16,
     pub w: u16,
     pub state: PlayerState,
+    /// Заряды ульты (0..=2), набиваются комбо-вехами.
+    pub ult_charge: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -330,6 +342,8 @@ pub struct BrickSnap {
     pub r: u8,
     /// hp 1..=3; 255 = неразрушимый камень.
     pub hp: u8,
+    /// 0 обычный, 1 взрывной, 2 телепорт, 3 регенерирующий, 4 движущийся.
+    pub kind: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -490,12 +504,14 @@ mod tests {
                     x: encode_coord(120.5),
                     w: encode_coord(118.0),
                     state: PlayerState::Alive,
+                    ult_charge: 0,
                 },
                 PlayerSnap {
                     id: 2,
                     x: encode_coord(400.0),
                     w: encode_coord(118.0),
                     state: PlayerState::BotControlled,
+                    ult_charge: 0,
                 },
             ],
             balls: vec![BallSnap {
@@ -510,12 +526,14 @@ mod tests {
                     c: 3,
                     r: 1,
                     hp: 2,
+                    kind: 0,
                 },
                 BrickSnap {
                     id: 11,
                     c: 4,
                     r: 1,
                     hp: 255,
+                    kind: 0,
                 },
             ],
             bricks_removed: vec![9],
@@ -562,6 +580,7 @@ mod tests {
                 score: 1230,
                 lives: 2,
             }],
+            fx: 0,
             projs: vec![ProjSnap {
                 id: 1,
                 x: 100,
@@ -592,6 +611,7 @@ mod tests {
                 color: 0,
                 xp: 42,
                 online: true,
+                ult: 0,
             }],
             spectators: vec![],
         };

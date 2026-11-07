@@ -99,6 +99,7 @@ fn info_from_record(rec: &PlayerRecord, color: u8) -> PlayerInfo {
         lives: 3,
         color,
         xp: rec.xp,
+        ult: 0,
         online: true,
     }
 }
@@ -348,6 +349,7 @@ impl Lobby {
             lives: 3,
             color: color_slot,
             xp: 0,
+            ult: 0,
             online: true,
         };
         room.broadcast(ServerMsg::PlayerJoined(Box::new(info.clone())));
@@ -501,6 +503,26 @@ impl Lobby {
         Ok(Joined { room_id, kind })
     }
 
+    /// Выбор ульты в лобби: 0 нет, 1 лед, 2 метеорит, 3 магнит.
+    pub async fn set_ult(&self, player_id: u32, room_id: u32, ult: u8) -> Result<(), LobbyError> {
+        if ult > 3 {
+            return Err(ErrCode::NotAllowed.into());
+        }
+        let mut inner = self.inner.lock().await;
+        let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
+        if room.phase != RoomPhase::Lobby {
+            return Err(ErrCode::NotAllowed.into());
+        }
+        let p = room
+            .players
+            .iter_mut()
+            .find(|p| p.id == player_id)
+            .ok_or(ErrCode::NotAllowed)?;
+        p.ult = ult;
+        room.broadcast_state();
+        Ok(())
+    }
+
     /// Смена цвета игроком: цвет должен быть свободен среди участников комнаты.
     pub async fn set_color(
         &self,
@@ -619,7 +641,7 @@ impl Lobby {
         let players = room
             .players
             .iter()
-            .map(|p| (p.id, p.name.clone(), p.bot_level))
+            .map(|p| (p.id, p.name.clone(), p.bot_level, p.ult))
             .collect();
         let speed = room.settings.speed_factor;
         let events_on = room.settings.events_enabled;

@@ -11,7 +11,7 @@ function str(s) { const u = Buffer.from(s, "utf8"); return Buffer.concat([u64(u.
 function opt(p) { return p === null ? Buffer.from([0]) : Buffer.concat([Buffer.from([1]), p]); }
 
 const enc = {
-  hello: (name, token) => Buffer.concat([u32(0), u16(5), str(name), opt(token ? str(token) : null)]),
+  hello: (name, token) => Buffer.concat([u32(0), u16(6), str(name), opt(token ? str(token) : null)]),
   addBot: (level) => Buffer.concat([u32(13), u32(level)]),
   removeBot: (id) => Buffer.concat([u32(14), u32(id)]),
   createRoom: (name, pass) => Buffer.concat([u32(2), str(name), opt(pass ? str(pass) : null), u32(0), Buffer.from([10, 1, 1]), f32(1.0)]),
@@ -36,7 +36,7 @@ class R {
 
 // PlayerInfo: общий читатель (v2: онлайн-флаг в конце)
 function readPI(r) {
-  return { id: r.u32(), name: r.str(), ready: !!r.u8(), is_bot: !!r.u8(), bot: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(), online: !!r.u8() };
+  return { id: r.u32(), name: r.str(), ready: !!r.u8(), is_bot: !!r.u8(), bot: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(), online: !!r.u8(), ult: r.u8() };
 }
 function readRoomState(r) {
   const room_id = r.u32(), code = r.str(), name = r.str(), mode = r.u32();
@@ -76,10 +76,10 @@ function decode(buf) {
       const tick = r.u32(); const fw = r.u16(); const fh = r.u16();
       const phase = r.u32(); const level = r.u32();
       const nP = r.u64(); const players = [];
-      for (let k = 0; k < nP; k++) players.push({ id: r.u32(), x: r.u16(), w: r.u16(), state: r.u32() });
+      for (let k = 0; k < nP; k++) players.push({ id: r.u32(), x: r.u16(), w: r.u16(), state: r.u32(), ult_charge: r.u8() });
       const nB = r.u64(); const balls = [];
       for (let k = 0; k < nB; k++) balls.push({ id: r.u16(), owner: r.u32(), x: r.u16(), y: r.u16() });
-      const nU = r.u64(); for (let k = 0; k < nU; k++) { r.u16(); r.u8(); r.u8(); r.u8(); }
+      const nU = r.u64(); for (let k = 0; k < nU; k++) { r.u16(); r.u8(); r.u8(); r.u8(); r.u8(); }
       const nR = r.u64(); for (let k = 0; k < nR; k++) r.u16();
       const nC = r.u64(); for (let k = 0; k < nC; k++) { r.u16(); r.u16(); r.u16(); r.u8(); }
       const nBl = r.u64(); for (let k = 0; k < nBl; k++) { r.u16(); r.u32(); r.u16(); r.u16(); }

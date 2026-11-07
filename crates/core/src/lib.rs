@@ -5,6 +5,7 @@ pub mod field;
 pub mod generator;
 pub mod protocol;
 
+pub use field::{BK_EXPLOSIVE, BK_MOVING, BK_NORMAL, BK_REGEN, BK_TELEPORT};
 pub use protocol::*;
 
 use serde::{Deserialize, Serialize};

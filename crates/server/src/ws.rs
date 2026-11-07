@@ -355,6 +355,27 @@ async fn dispatch(
                 .await
                 .map_err(lobby)?
         }
+        ClientMsg::SetUltimate { ult } => {
+            let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
+            state
+                .lobby
+                .set_ult(record.player_id, rid, ult)
+                .await
+                .map_err(lobby)?
+        }
+        ClientMsg::UseUltimate => {
+            if let Some(rid) = room_id {
+                state
+                    .lobby
+                    .game_cmd(
+                        *rid,
+                        GameCmd::Ultimate {
+                            player_id: record.player_id,
+                        },
+                    )
+                    .await;
+            }
+        }
         ClientMsg::RemoveBot { player_id } => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
             state

@@ -115,6 +115,10 @@
   .dots span{ animation:dotPulse 1.2s infinite; opacity:0; }
   .dots span:nth-child(2){ animation-delay:.2s; } .dots span:nth-child(3){ animation-delay:.4s; }
   @keyframes dotPulse { 0%,100%{ opacity:0; } 50%{ opacity:1; } }
+  .ult-row{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  .ult-label{ font-size:.9rem; color:#3b3552; }
+  .ult-btn{ font-size:.85rem; padding:4px 10px; border-radius:12px; background:#fff; border:2px solid #cfc6e8; cursor:pointer; }
+  .ult-btn.active{ background:#ffe6f0; border-color:#ff6b6b; font-weight:bold; }
   @media (max-width: 720px) {
     h1 { font-size: 1.6rem; }
     .menu-row { flex-wrap: wrap; }
@@ -188,6 +192,13 @@
     <div id="screen-room" class="screen">
       <div class="menu-row"><b id="room-title"></b><span style="flex:1"></span>
         <button id="btn-join-play" style="display:none" data-i18n="becomePlayer">Стать игроком</button>
+        <div class="ult-row" id="ult-row">
+          <span class="ult-label" data-i18n="ultPick">Ульта:</span>
+          <button class="ult-btn" data-ult="0" data-i18n="ultNone">Нет</button>
+          <button class="ult-btn" data-ult="1" data-i18n="ultIce">❄ Лед</button>
+          <button class="ult-btn" data-ult="2" data-i18n="ultMeteor">☄ Метеорит</button>
+          <button class="ult-btn" data-ult="3" data-i18n="ultMagnet">🧲 Магнит</button>
+        </div>
       <button id="btn-ready" data-i18n="ready">Готов</button>
         <button id="btn-start" style="display:none" data-i18n="start">▶ Старт</button>
         <button id="btn-leave" data-i18n="leave">Выйти</button>

@@ -37,7 +37,7 @@ pub const LEVELS: [&[&str]; 15] = [
     ],
     &[
         "1111111111",
-        "2xx2222xx2",
+        "2xx2m2mxx2",
         "1111111111",
         "222xxxxx22",
         "1111111111",
@@ -45,7 +45,7 @@ pub const LEVELS: [&[&str]; 15] = [
     &[
         "3333333333",
         "3222222223",
-        "3211111123",
+        "32e1111e23",
         "3211111123",
         "3222222223",
         "3333333333",
@@ -62,7 +62,7 @@ pub const LEVELS: [&[&str]; 15] = [
     &[
         "x22222222x",
         "2........2",
-        "2.333333.2",
+        "2.3g33g3.2",
         "2........2",
         "x11111111x",
     ],
@@ -100,7 +100,7 @@ pub const LEVELS: [&[&str]; 15] = [
     ],
     // 12. Крест-накрест с камнями
     &[
-        "333x33x333",
+        "333t33t333",
         "2..2.2..2.",
         "1111.1111.",
         "2..2.2..2.",
@@ -132,6 +132,14 @@ pub const LEVELS: [&[&str]; 15] = [
     ],
 ];
 
+/// Типы кирпичей: обычный, взрывной (цепь по соседям), телепорт (переброс мяча),
+/// регенерирующий (восстанавливает hp), движущийся (дрейф по строке).
+pub const BK_NORMAL: u8 = 0;
+pub const BK_EXPLOSIVE: u8 = 1;
+pub const BK_TELEPORT: u8 = 2;
+pub const BK_REGEN: u8 = 3;
+pub const BK_MOVING: u8 = 4;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Brick {
     pub id: u16,
@@ -140,6 +148,10 @@ pub struct Brick {
     /// hp 1..=3; stone=true — неразрушимый.
     pub hp: u8,
     pub stone: bool,
+    /// Тип кирпича: BK_*.
+    pub kind: u8,
+    /// Максимальный hp для регенерации.
+    pub hp_max: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -197,6 +209,16 @@ pub struct Field {
     next_brick_id: u16,
     next_ball_id: u16,
     next_bullet_id: u16,
+    /// Внутренний счётчик шагов: регенерация, фаза движения кирпичей.
+    pub ticks: u32,
+    /// xorshift-гормон для телепорта (детерминированный, без внешнего rng).
+    rng_state: u64,
+    /// Ульты: до какого тика действует эффект.
+    pub ice_until: u32,
+    pub meteor_until: u32,
+    pub magnet_until: u32,
+    /// Зафиксированный тик движения кирпичей на время заморозки.
+    pub frozen_tick: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -221,6 +243,12 @@ impl Field {
             next_brick_id: 0,
             next_ball_id: 0,
             next_bullet_id: 0,
+            ticks: 0,
+            rng_state: 0x9E3779B97F4A7C15,
+            ice_until: 0,
+            meteor_until: 0,
+            magnet_until: 0,
+            frozen_tick: None,
             bullets: vec![],
             shield: false,
         };
@@ -240,18 +268,22 @@ impl Field {
                 }
                 let id = self.next_brick_id;
                 self.next_brick_id += 1;
-                let stone = ch == 'x';
-                let hp = if stone {
-                    255
-                } else {
-                    ch.to_digit(10).unwrap_or(1) as u8
+                let (kind, hp) = match ch {
+                    'x' => (BK_NORMAL, 255u8),
+                    'e' => (BK_EXPLOSIVE, 1),
+                    't' => (BK_TELEPORT, 2),
+                    'g' => (BK_REGEN, 2),
+                    'm' => (BK_MOVING, 2),
+                    d => (BK_NORMAL, d.to_digit(10).unwrap_or(1) as u8),
                 };
                 let brick = Brick {
                     id,
                     c: c as u8,
                     r: r as u8,
                     hp,
-                    stone,
+                    stone: ch == 'x',
+                    kind,
+                    hp_max: hp,
                 };
                 self.grid[r * COLS + c] = Some(id);
                 self.bricks.push(brick);
@@ -300,6 +332,18 @@ impl Field {
     /// Добавить кирпич в свободную ячейку (евенты метеорита и камнепада).
     /// None — ячейка занята или вне сетки.
     pub fn add_brick(&mut self, c: usize, r: usize, hp: u8, stone: bool) -> Option<u16> {
+        self.add_brick_kind(c, r, hp, stone, BK_NORMAL)
+    }
+
+    /// Добавить кирпич с типом (редактор уровней, евенты).
+    pub fn add_brick_kind(
+        &mut self,
+        c: usize,
+        r: usize,
+        hp: u8,
+        stone: bool,
+        kind: u8,
+    ) -> Option<u16> {
         if c >= COLS || r * COLS + c >= self.grid.len() {
             return None;
         }
@@ -314,6 +358,8 @@ impl Field {
             r: r as u8,
             hp: if stone { 255 } else { hp },
             stone,
+            kind,
+            hp_max: hp,
         };
         self.grid[r * COLS + c] = Some(id);
         self.bricks.push(brick);
@@ -369,6 +415,16 @@ impl Field {
     /// Один фиксированный шаг физики. `dt` — шаг тика (1/TICK_HZ).
     pub fn step(&mut self, dt: f32) -> StepResult {
         let mut res = StepResult::default();
+        self.ticks = self.ticks.wrapping_add(1);
+
+        // регенерация: раз в 90 тиков восстанавливаем hp у реген-кирпичей (замирает во льду)
+        if self.ticks.is_multiple_of(90) && self.ice_until <= self.ticks {
+            for b in self.bricks.iter_mut() {
+                if b.kind == BK_REGEN && !b.stone && b.hp < b.hp_max {
+                    b.hp += 1;
+                }
+            }
+        }
 
         // ракетки: клэмп после смены ширины (бонус W) + движение к цели
         for p in &mut self.paddles {
@@ -476,7 +532,7 @@ impl Field {
                 if rf >= 0.0 {
                     let r = rf.floor() as usize;
                     if self.brick_at(c, r).is_some() {
-                        self.damage_brick(c, r, u.owner, &mut res);
+                        self.damage_brick(c, r, u.owner, &mut res, 0);
                         dead = true;
                     }
                 }
@@ -512,8 +568,41 @@ impl Field {
         }
     }
 
+    /// Горизонтальный дрейф движущихся кирпичей строки (пиксели). Детерминирован от тика.
+    pub fn moving_offset(&self, row: u8) -> f32 {
+        let t = self.frozen_tick.unwrap_or(self.ticks) as f32;
+        ((t * 0.55 + row as f32 * 7.3).sin()) * (self.w / 10.0) * 0.38
+    }
+
+    /// Битмаска активных эффектов для снапшота: 1 лед, 2 метеорит, 4 магнит.
+    pub fn fx_mask(&self) -> u8 {
+        let mut m = 0u8;
+        if self.ice_until > self.ticks {
+            m |= 1;
+        }
+        if self.meteor_until > self.ticks {
+            m |= 2;
+        }
+        if self.magnet_until > self.ticks {
+            m |= 4;
+        }
+        m
+    }
+
+    fn next_rand(&mut self) -> f32 {
+        let mut x = self.rng_state;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.rng_state = x;
+        ((x >> 11) as f32) / ((1u64 << 53) as f32)
+    }
+
     /// Общий урон кирпича (мяч или пуля): hp-1, событие, удаление при 0.
-    fn damage_brick(&mut self, c: usize, r: usize, owner: u32, res: &mut StepResult) {
+    fn damage_brick(&mut self, c: usize, r: usize, owner: u32, res: &mut StepResult, depth: u8) {
+        if depth > 6 {
+            return; // защита от бесконечной цепи
+        }
         let Some(brick) = self.brick_at(c, r) else {
             return;
         };
@@ -528,9 +617,11 @@ impl Field {
             });
             return;
         }
+        let brittle = self.ice_until > self.ticks;
         if let Some(b) = self.bricks.iter_mut().find(|b| b.id == brick_id) {
-            b.hp -= 1;
+            b.hp = b.hp.saturating_sub(if brittle { 2 } else { 1 });
             if b.hp == 0 {
+                let kind = b.kind;
                 res.brick_events.push(BrickEvent {
                     brick_id,
                     c: c as u8,
@@ -539,6 +630,22 @@ impl Field {
                     destroyed: true,
                 });
                 self.remove_brick(brick_id);
+                // взрывной: урон 1 всем 8 соседям, цепь при разрушении соседей-взрывных
+                if kind == BK_EXPLOSIVE {
+                    for dr in -1i32..=1 {
+                        for dc in -1i32..=1 {
+                            if dc == 0 && dr == 0 {
+                                continue;
+                            }
+                            let nc = c as i32 + dc;
+                            let nr = r as i32 + dr;
+                            if nc < 0 || nr < 0 {
+                                continue;
+                            }
+                            self.damage_brick(nc as usize, nr as usize, owner, res, depth + 1);
+                        }
+                    }
+                }
             } else {
                 res.brick_events.push(BrickEvent {
                     brick_id,
@@ -551,6 +658,15 @@ impl Field {
         }
     }
 
+    /// Урон кирпича по id (движущиеся вне сеточного lookup).
+    fn damage_brick_by_id(&mut self, brick_id: u16, owner: u32, res: &mut StepResult, depth: u8) {
+        let Some(b) = self.bricks.iter().find(|b| b.id == brick_id) else {
+            return;
+        };
+        let (c, r) = (b.c as usize, b.r as usize);
+        self.damage_brick(c, r, owner, res, depth);
+    }
+
     fn collide_bricks(&mut self, ball: &mut Ball, res: &mut StepResult) {
         let cellw = self.w / COLS as f32;
         let c0 = ((ball.x - BALL_R) / cellw).floor().max(0.0) as usize;
@@ -560,13 +676,31 @@ impl Field {
 
         for r in r0..=r1 {
             for c in c0..=c1 {
-                if self.brick_at(c, r).is_none() {
+                let hit = self.brick_at(c, r);
+                if let Some(b) = hit {
+                    if b.kind == BK_MOVING {
+                        continue; // движущиеся обрабатываются отдельно (со смещением)
+                    }
+                } else {
                     continue;
                 }
                 let bx = c as f32 * cellw + 3.0;
                 let by = GRID_TOP + r as f32 * CELL_H + 3.0;
                 let bw = cellw - 6.0;
                 let bh = CELL_H - 6.0;
+                if self.meteor_until > self.ticks {
+                    // метеорит: мяч пробивает кирпич насквозь, без отскока
+                    let owner = ball.owner;
+                    let kind = self.brick_at(c, r).map(|b| b.kind).unwrap_or(BK_NORMAL);
+                    self.damage_brick(c, r, owner, res, 0);
+                    if kind == BK_TELEPORT {
+                        let nx = BALL_R + self.next_rand() * (self.w - 2.0 * BALL_R);
+                        let ny = GRID_TOP + 5.0 * CELL_H + self.next_rand() * 4.0 * CELL_H;
+                        ball.x = nx;
+                        ball.y = ny;
+                    }
+                    return;
+                }
                 // ближайшая точка прямоугольника к центру мяча
                 let cx = ball.x.clamp(bx, bx + bw);
                 let cy = ball.y.clamp(by, by + bh);
@@ -592,9 +726,55 @@ impl Field {
                 ball.y = cy + ny * BALL_R;
 
                 let owner = ball.owner;
-                self.damage_brick(c, r, owner, res);
+                let kind = self.brick_at(c, r).map(|b| b.kind).unwrap_or(BK_NORMAL);
+                self.damage_brick(c, r, owner, res, 0);
+                if kind == BK_TELEPORT {
+                    // переброс мяча в случайную точку верхних рядов
+                    let nx = BALL_R + self.next_rand() * (self.w - 2.0 * BALL_R);
+                    let ny = GRID_TOP + 5.0 * CELL_H + self.next_rand() * 4.0 * CELL_H;
+                    ball.x = nx;
+                    ball.y = ny;
+                }
                 return; // один кирпич за шаг, как в popblocks
             }
+        }
+
+        // движущиеся кирпичи: AABB со смещением строки
+        let movers: Vec<(u16, u8, u8)> = self
+            .bricks
+            .iter()
+            .filter(|b| b.kind == BK_MOVING && !b.stone)
+            .map(|b| (b.id, b.c, b.r))
+            .collect();
+        for (id, c, r) in movers {
+            let bx = c as f32 * cellw + 3.0 + self.moving_offset(r);
+            let by = GRID_TOP + r as f32 * CELL_H + 3.0;
+            let bw = cellw - 6.0;
+            let bh = CELL_H - 6.0;
+            let cx = ball.x.clamp(bx, bx + bw);
+            let cy = ball.y.clamp(by, by + bh);
+            let dx = ball.x - cx;
+            let dy = ball.y - cy;
+            let d2 = dx * dx + dy * dy;
+            if d2 > BALL_R * BALL_R {
+                continue;
+            }
+            let (nx, ny) = if d2 == 0.0 {
+                (0.0, if ball.vy > 0.0 { -1.0 } else { 1.0 })
+            } else {
+                let d = d2.sqrt();
+                (dx / d, dy / d)
+            };
+            let dot = ball.vx * nx + ball.vy * ny;
+            if dot < 0.0 {
+                ball.vx -= 2.0 * dot * nx;
+                ball.vy -= 2.0 * dot * ny;
+            }
+            ball.x = cx + nx * BALL_R;
+            ball.y = cy + ny * BALL_R;
+            let owner = ball.owner;
+            self.damage_brick_by_id(id, owner, res, 0);
+            return;
         }
     }
 }
@@ -615,6 +795,119 @@ mod tests {
         assert!(f.destructible_left());
         // первый кирпич (0,0) hp 2
         assert_eq!(f.brick_at(0, 0).unwrap().hp, 2);
+    }
+
+    #[test]
+    fn explosive_chain_destroys_neighbors() {
+        let mut f = plain_field();
+        f.grid_clear();
+        let center = f.add_brick_kind(4, 2, 1, false, BK_EXPLOSIVE).unwrap();
+        for (c, r) in [(3, 2usize), (5, 2), (4, 1), (4, 3)] {
+            f.add_brick(c, r, 1, false);
+        }
+        let mut res = StepResult::default();
+        f.damage_brick(4, 2, 1, &mut res, 0);
+        assert!(res
+            .brick_events
+            .iter()
+            .any(|e| e.brick_id == center && e.destroyed));
+        // центр + 4 соседа уничтожены цепью
+        assert_eq!(
+            f.bricks.len(),
+            0,
+            "взрыв должен уничтожить всех соседей hp1"
+        );
+    }
+
+    #[test]
+    fn regen_brick_heals_over_time() {
+        let mut f = plain_field();
+        f.grid_clear();
+        f.add_brick_kind(2, 1, 2, false, BK_REGEN);
+        let mut res = StepResult::default();
+        f.damage_brick(2, 1, 1, &mut res, 0);
+        assert_eq!(f.bricks[0].hp, 1);
+        for _ in 0..91 {
+            f.step(1.0 / 30.0);
+        }
+        assert_eq!(f.bricks[0].hp, 2, "реген должен вернуть hp до максимума");
+    }
+
+    #[test]
+    fn moving_offset_deterministic_and_bounded() {
+        let mut f = plain_field();
+        f.ticks = 100;
+        let o1 = f.moving_offset(0);
+        let amp = f.w / 10.0 * 0.38;
+        assert!(o1.abs() <= amp + 1e-3);
+        f.ticks = 200;
+        assert_ne!(
+            f.moving_offset(0),
+            o1,
+            "смещение должно меняться со временем"
+        );
+        f.ticks = 100;
+        assert!(
+            (f.moving_offset(0) - o1).abs() < 1e-4,
+            "детерминизм от тика"
+        );
+    }
+
+    #[test]
+    fn teleport_brick_relocates_ball() {
+        let mut f = plain_field();
+        f.grid_clear();
+        f.add_brick_kind(5, 1, 2, false, BK_TELEPORT);
+        let id = f.add_ball(1, 5.5 * (f.w / 10.0), GRID_TOP + CELL_H + 40.0);
+        f.launch(id, -std::f32::consts::FRAC_PI_2); // строго вверх в кирпич
+        let before = f.balls[0].y;
+        let band = GRID_TOP + 5.0 * CELL_H..=(GRID_TOP + 9.0 * CELL_H);
+        let mut teleported = false;
+        for _ in 0..20 {
+            if !f.step(1.0 / 30.0).lost.is_empty() {
+                break;
+            }
+            if let Some(b) = f.balls.iter().find(|b| b.id == id) {
+                if band.contains(&b.y) {
+                    teleported = true;
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        assert!(
+            teleported,
+            "мяч должен телепортироваться в верхние ряды (было y={before})"
+        );
+    }
+
+    #[test]
+    fn level_chars_map_to_kinds() {
+        let mut f = plain_field();
+        f.load_level(0);
+        // синтетический парсинг: строим поле из строки
+        let mut g = Field::new(FIELD_W, FIELD_H, 0);
+        g.grid_clear();
+        for (k, ch) in [
+            (BK_EXPLOSIVE, 'e'),
+            (BK_TELEPORT, 't'),
+            (BK_REGEN, 'g'),
+            (BK_MOVING, 'm'),
+        ] {
+            g.add_brick_kind(
+                usize::from(k),
+                0,
+                match ch {
+                    'e' => 1,
+                    _ => 2,
+                },
+                false,
+                k,
+            );
+        }
+        assert_eq!(g.bricks.iter().filter(|b| b.kind == BK_MOVING).count(), 1);
+        assert_eq!(g.bricks.iter().filter(|b| b.kind == BK_REGEN).count(), 1);
     }
 
     #[test]
@@ -752,7 +1045,8 @@ mod level_tests {
                     COLS
                 );
                 assert!(
-                    row.chars().all(|c| matches!(c, '1'..='3' | 'x' | '.')),
+                    row.chars()
+                        .all(|c| matches!(c, '1'..='3' | 'x' | '.' | 'e' | 't' | 'g' | 'm')),
                     "уровень {}: недопустимый символ в '{}'",
                     i + 1,
                     row

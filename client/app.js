@@ -10,7 +10,7 @@ const I18N = {
     connecting: "подключение…", online: "сервер онлайн", offline: "сервер недоступен, переподключение…",
     roomName: "название комнаты", roomPass: "пароль (необязательно)", create: "Создать",
     joinCode: "код комнаты", joinPass: "пароль", joinByCode: "Войти по коду", refresh: "↻ обновить",
-    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком",
+    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд",
     bots: "Боты:", botLazy: "+ Лентяй", botNormal: "+ Обычный", botPro: "+ Профи",
     hint: "мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции",
     noRooms: "Пока нет комнат — создайте первую!", enter: "Войти", inProgress: "▶ идёт матч", lobbySt: "лобби",
@@ -24,7 +24,7 @@ const I18N = {
     connecting: "connecting…", online: "server online", offline: "server unreachable, reconnecting…",
     roomName: "room name", roomPass: "password (optional)", create: "Create",
     joinCode: "room code", joinPass: "password", joinByCode: "Join by code", refresh: "↻ refresh",
-    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player",
+    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges",
     bots: "Bots:", botLazy: "+ Lazy", botNormal: "+ Normal", botPro: "+ Pro",
     hint: "mouse — paddle · click/space — launch · 1–8 — emotes",
     noRooms: "No rooms yet — create the first one!", enter: "Join", inProgress: "▶ playing", lobbySt: "lobby",
@@ -332,6 +332,10 @@ function renderRoom() {
       ...r.spectators.filter((p) => p.id !== S.myId).map((p) => p.color),
     ]);
     const me = r.players.find((p) => p.id === S.myId) || r.spectators.find((p) => p.id === S.myId);
+    document.querySelectorAll("#ult-row .ult-btn").forEach((b) => {
+      b.classList.toggle("active", me && me.ult === +b.dataset.ult);
+      b.disabled = !r.players.some((p) => p.id === S.myId);
+    });
     for (let i = 0; i < COLORS.length; i++) {
       const dot = document.createElement("span");
       dot.className = "color-dot" + (me && me.color === i ? " chosen" : "");
@@ -393,6 +397,8 @@ function addChat(playerId, text) {
 /* матч: HUD */
 function updateHud(s) {
   const el = document.getElementById("hud");
+  const meP = S.latest && S.latest.players.find((p) => p.id === S.myId);
+  const meCharge = meP ? meP.ult_charge : 0;
   if (!s.scores.length) { el.innerHTML = ""; return; }
   el.innerHTML = s.scores
     .map((sc) => {
@@ -405,7 +411,11 @@ function updateHud(s) {
     })
     .join("")
     + (s.events || []).map((ev) => `<span class="pill combo">⚡ ${EVENT_NAMES[ev.event] || "?"} ${ev.remaining_secs > 100 ? "∞" : Math.max(0, Math.round(ev.remaining_secs)) + "с"}</span>`).join("")
-    + `<span class="pill muted">ур. ${s.level} · тик ${s.tick}${S.room && S.room.spectators.length ? " · 👀 " + S.room.spectators.length : ""}</span>`;
+    + `<span class="pill muted">ур. ${s.level} · тик ${s.tick}${S.room && S.room.spectators.length ? " · 👀 " + S.room.spectators.length : ""}</span>`
+    + (S.latest && (S.latest.fx & 1) ? '<span class="pill combo">❄ ЛЕД</span>' : "")
+    + (S.latest && (S.latest.fx & 2) ? '<span class="pill combo">☄ ПРОБОЙ</span>' : "")
+    + (S.latest && (S.latest.fx & 4) ? '<span class="pill combo">🧲 МАГНИТ</span>' : "")
+    + (meCharge > 0 ? `<button id="btn-ult" class="pill combo" style="cursor:pointer">⚡ ${meCharge} · U</button>` : "");
 }
 
 /* матч: итог */
@@ -715,10 +725,17 @@ function drawBubbles(W, H) {
   }
 }
 
+const BRICK_KIND_COLORS = {
+  1: [0xff9f43, 0xee5253], // взрывной
+  2: [0xa55eea, 0x8854d0], // телепорт
+  3: [0x2ecc71, 0x27ae60], // регенерирующий
+  4: [0x48dbfb, 0x0abde3], // движущийся
+};
 function drawBricksCache(W) {
   const bg = window.__brickG;
   bg.clear();
   for (const b of S.bricks.values()) {
+    if ((b.kind || 0) === 4) continue; // движущиеся рисуются покадрово
     const cellw = W / 10;
     let x = b.c * cellw + 3, y = GRID_TOP + b.r * CELL_H + 3, w = cellw - 6, h = CELL_H - 6;
     const born = S.brickBorn.get(b.id);
@@ -731,7 +748,8 @@ function drawBricksCache(W) {
         x = cx2 - (w / 2) * sc; y = cy2 - (h / 2) * sc; w *= sc; h *= sc;
       }
     }
-    const col = BRICK_COLORS[b.hp] || BRICK_COLORS[1];
+    const kcol = BRICK_KIND_COLORS[b.kind || 0];
+    const col = kcol || BRICK_COLORS[b.hp] || BRICK_COLORS[1];
     const maxHp = S.brickMax.get(b.id) || b.hp;
     const cracks = b.hp < 200 ? Math.min(2, maxHp - b.hp) : 0;
     bg.roundRect(x + 2, y + 3, w, h, 7).fill({ color: 0x3b3552, alpha: 0.16 });
@@ -740,6 +758,32 @@ function drawBricksCache(W) {
     bg.roundRect(x + 3, y + 2.5, w - 6, 5, 2.5).fill({ color: 0xffffff, alpha: 0.8 });
     bg.circle(x + 7, y + 7, 2.5).fill({ color: 0xffffff, alpha: 0.9 });
     bg.roundRect(x, y, w, h, 7).stroke({ color: 0xffffff, width: 1.5, alpha: 0.55 });
+    // маркеры типов
+    if (b.kind === 1) { // взрывной: звезда
+      const cx2 = x + w / 2, cy2 = y + h / 2, rr = Math.min(w, h) * 0.26;
+      bg.moveTo(cx2 + rr, cy2);
+      for (let k2 = 1; k2 < 9; k2++) {
+        const ang = (k2 * Math.PI) / 4, rad = k2 % 2 ? rr * 0.45 : rr;
+        bg.lineTo(cx2 + Math.cos(ang) * rad, cy2 + Math.sin(ang) * rad);
+      }
+      bg.closePath();
+      bg.fill({ color: 0x2f2b44, alpha: 0.75 });
+    } else if (b.kind === 2) { // телепорт: спираль
+      const cx2 = x + w / 2, cy2 = y + h / 2;
+      bg.moveTo(cx2 + 6, cy2);
+      bg.arc(cx2, cy2, 6, 0, Math.PI * 1.4);
+      bg.moveTo(cx2 - 6, cy2);
+      bg.arc(cx2, cy2, 6, Math.PI, Math.PI * 2.4);
+      bg.stroke({ color: 0xffffff, width: 2, alpha: 0.85 });
+    } else if (b.kind === 3) { // реген: крест + пипсы hp
+      const cx2 = x + w / 2, cy2 = y + h / 2;
+      bg.moveTo(cx2 - 5, cy2); bg.lineTo(cx2 + 5, cy2);
+      bg.moveTo(cx2, cy2 - 5); bg.lineTo(cx2, cy2 + 5);
+      bg.stroke({ color: 0xffffff, width: 2.4, alpha: 0.9 });
+      for (let k2 = 0; k2 < (maxHp || 1); k2++) {
+        bg.circle(x + 6 + k2 * 6, y + h - 5, 2).fill({ color: k2 < b.hp ? 0xd1f2e0 : 0x2f2b44, alpha: 0.95 });
+      }
+    }
     for (let k = 0; k < cracks; k++) {
       let cx = x + 8 + ((b.id * 7 + k * 29) % Math.max(1, w - 16));
       let cy = y + 4 + ((b.id * 13 + k * 7) % Math.max(1, h - 8));
@@ -755,6 +799,42 @@ function drawBricksCache(W) {
   S.bricksDirty = false;
 }
 
+/* движущиеся кирпичи + эффекты ульт поверх поля */
+function drawUltFx(W, H) {
+  if (!S.latest || !S.latest.fx) return;
+  const t = performance.now() / 1000;
+  if (S.latest.fx & 1) { // лед: холодная подложка поля
+    g.roundRect(0, GRID_TOP - 6, W, H - GRID_TOP + 6, 12).stroke({ color: 0x81d4fa, width: 3, alpha: 0.35 + 0.1 * Math.sin(t * 4) });
+    for (let i = 0; i < 8; i++) {
+      const sx = ((i * 137 + (t * 40) % W) % W);
+      const sy = GRID_TOP + ((i * 61 + (t * 30) % (H - GRID_TOP)) % (H - GRID_TOP));
+      g.circle(sx, sy, 1.8).fill({ color: 0xd1f0ff, alpha: 0.5 });
+    }
+  }
+}
+/* движущиеся кирпичи: смещение = серверная формула от тика снапшота */
+function drawMovingBricks(W) {
+  if (!S.latest) return;
+  const cellw = W / 10;
+  const tick = S.latest.tick || 0;
+  for (const b of S.bricks.values()) {
+    if ((b.kind || 0) !== 4) continue;
+    const dx = Math.sin(tick * 0.55 + b.r * 7.3) * cellw * 0.38;
+    const x = b.c * cellw + 3 + dx, y = GRID_TOP + b.r * CELL_H + 3, w = cellw - 6, h = CELL_H - 6;
+    const col = BRICK_KIND_COLORS[4];
+    g.roundRect(x + 2, y + 3, w, h, 7).fill({ color: 0x3b3552, alpha: 0.16 });
+    g.roundRect(x, y, w, h, 7).fill({ color: col[0], alpha: 0.62 });
+    g.roundRect(x + 4, y + 4, w - 8, h - 8, 5).fill({ color: col[1], alpha: 0.32 });
+    g.roundRect(x + 3, y + 2.5, w - 6, 5, 2.5).fill({ color: 0xffffff, alpha: 0.8 });
+    g.roundRect(x, y, w, h, 7).stroke({ color: 0xffffff, width: 1.5, alpha: 0.55 });
+    g.moveTo(x + w / 2 - 7, y + h / 2); g.lineTo(x + w / 2 + 7, y + h / 2);
+    g.lineTo(x + w / 2 + 3, y + h / 2 - 4);
+    g.moveTo(x + w / 2 + 7, y + h / 2); g.lineTo(x + w / 2 - 7, y + h / 2);
+    g.lineTo(x + w / 2 - 3, y + h / 2 + 4);
+    g.stroke({ color: 0x2f2b44, width: 2, alpha: 0.8, cap: "round", join: "round" });
+  }
+}
+
 function render() {
   if (!g) return;
   g.clear();
@@ -767,6 +847,8 @@ function render() {
   const bossNow = !!S.latest.boss;
   if (S.bgDirty || bossNow !== S.bgBoss) drawBackgroundCache(W, H);
   if (S.bricksDirty || S.brickBorn.size > 0) drawBricksCache(W);
+  drawMovingBricks(W);
+  drawUltFx(W, H);
   drawBubbles(W, H);
 
   if ((S.latest.events || []).some((ev) => ev.event === 1)) {
@@ -879,6 +961,9 @@ function render() {
     const e = entityAt(buf, rt, cp.id, (s) => s.capsules.find((q) => q.id === cp.id));
     if (!e) continue;
     g.roundRect(e.x - 13, e.y - 11, 26, 22, 8).fill(CAPSULE_COLORS[cp.kind] || 0xfeca57);
+    if (S.latest && (S.latest.fx & 4)) {
+      g.circle(e.x, e.y, 20 + 2.5 * Math.sin(performance.now() / 100)).stroke({ color: 0x81d4fa, width: 2, alpha: 0.55 });
+    }
     g.roundRect(e.x - 13, e.y - 11, 26, 22, 8).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
   }
   for (const u of S.latest.bullets || []) {
@@ -919,7 +1004,7 @@ function render() {
     if (!e) { S.trails.delete(b.id); continue; }
     // ушедший за нижнюю кромку мяч не рисуем: без «призрака» под ракеткой
     if (e.y > H + 10) { S.trails.delete(b.id); continue; }
-    const color = pcolor((playerInfo(b.owner_id) || {}).color);
+    const color = S.latest && (S.latest.fx & 2) ? 0xff9f43 : pcolor((playerInfo(b.owner_id) || {}).color);
     curBalls.set(b.id, { x: e.x, y: e.y, color });
     // мой прилипший мяч клеится к предсказанной ракетке — ноль отставания
     const glued = b.owner_id === S.myId && e.y > H - 80 && S.paddleX !== null;
@@ -996,6 +1081,7 @@ function bindInput() {
     if (document.getElementById("screen-game").style.display === "none") return;
     if (e.key === " ") { e.preventDefault(); send(P.mAction()); }
     if (e.key >= "1" && e.key <= "8") send(P.mEmote(+e.key - 1));
+    if (e.key === "u" || e.key === "U" || e.key === "у" || e.key === "У") send(P.mUseUlt());
   });
   setInterval(() => { if (S.latest) throttledPaddle(); }, 33);
 }
@@ -1117,6 +1203,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     localStorage.removeItem("pop_room_code");
     showScreen("menu");
   };
+  document.querySelectorAll("#ult-row .ult-btn").forEach((b) => {
+    b.onclick = () => {
+      send(P.mSetUlt(+b.dataset.ult));
+      setTimeout(renderRoom, 120);
+    };
+  });
+  document.getElementById("hud").addEventListener("click", (e) => {
+    if (e.target && e.target.id === "btn-ult") send(P.mUseUlt());
+  });
   document.getElementById("btn-exit").onclick = () => {
     send(P.mLeave());
     S.room = null;
