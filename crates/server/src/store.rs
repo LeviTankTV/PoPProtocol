@@ -243,6 +243,7 @@ impl Store {
     }
 
     /// Клан игрока (None — без клана).
+    #[allow(dead_code)]
     pub async fn clan_of(&self, player_id: u32) -> Option<ClanInfo> {
         match self {
             Store::Memory(m) => m.clan_of(player_id).await,
@@ -550,6 +551,7 @@ impl MemoryStore {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn clan_of(&self, player_id: u32) -> Option<ClanInfo> {
         let inner = self.inner.lock().await;
         let tag = inner.player_clan.get(&player_id)?;
@@ -563,6 +565,7 @@ impl MemoryStore {
         Some(ClanInfo { xp, ..clan })
     }
 
+    #[allow(dead_code)]
     async fn clan_top(&self, limit: usize) -> Vec<ClanInfo> {
         let inner = self.inner.lock().await;
         let mut list: Vec<ClanInfo> = inner
@@ -1032,6 +1035,7 @@ impl MongoStore {
         }
     }
 
+    #[allow(dead_code)]
     async fn clan_of(&self, player_id: u32) -> Option<ClanInfo> {
         let d = self
             .players

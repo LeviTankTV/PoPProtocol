@@ -590,6 +590,7 @@ impl Lobby {
     }
 
     /// Топ кланов.
+    #[allow(dead_code)]
     pub async fn clan_top(&self, limit: usize) -> Vec<ClanInfo> {
         self.store.clan_top(limit).await
     }
