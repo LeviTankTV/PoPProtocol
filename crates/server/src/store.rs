@@ -498,7 +498,7 @@ impl MongoStore {
                 "place": place as i32,
                 "total": total as i32,
                 "score": score as i32,
-                "elo_delta": elo_delta as i32,
+                "elo_delta": elo_delta,
                 "season": season,
                 "ts": SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64).unwrap_or(0),
             })

@@ -410,7 +410,7 @@ impl Lobby {
         let season = season_now();
         let n = scores.len().max(1) as i32;
         let mut ranked: Vec<(u32, u32)> = scores.clone();
-        ranked.sort_by(|a, b| b.1.cmp(&a.1));
+        ranked.sort_by_key(|r| std::cmp::Reverse(r.1));
         for (place, (player_id, score)) in ranked.iter().enumerate() {
             let place = (place + 1) as i32;
             let raw = 64.0 * ((n - place) as f32 / (n - 1).max(1) as f32 - 0.5);
