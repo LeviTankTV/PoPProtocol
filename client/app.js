@@ -10,7 +10,13 @@ const I18N = {
     connecting: "подключение…", online: "сервер онлайн", offline: "сервер недоступен, переподключение…",
     roomName: "название комнаты", roomPass: "пароль (необязательно)", create: "Создать",
     joinCode: "код комнаты", joinPass: "пароль", joinByCode: "Войти по коду", refresh: "↻ обновить",
-    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд", edOpen: "Открыть редактор", edName: "Название карты", edRows: "Строк:", edClear: "Очистить", edTest: "▶ Тест", edPublish: "🌍 Опубликовать", edClose: "← Меню", mapsEmpty: "карт пока нет — создай первую!", playMap: "Играть", npTitle: "Сеть", tutTitle1: "Привет! Это PoP - Protocol", tutText1: "Двигай 🏏 ракеткой мышью. Мяч отскакивает и разбивает кирпичи сверху.", tutTitle2: "Капсулы и бонусы", tutText2: "Ловля 🎁 капсул даёт бонусы: лазер, шире ракетка, мульти-мяч. Красные — ловушки!", tutTitle3: "Боссы каждые 3 уровня", tutText3: "Бей мячом в босса. Мины и пули станят ракетку — уворачивайся! Комбо ×5 заряжает ульту (клавиша U).", tutTitle4: "Командная игра", tutText4: "Создай комнату, зови друзей по коду или добавляй ботов. Тренировка: комната с ботами-новичками.", tutNext: "Дальше", tutSkip: "Пропустить", tutTrain: "🎯 Тренировка", shopTitle: "🛍 Магазин скинов", shopBuy: "Купить", shopEquip: "Надеть", shopOn: "надет", shopOwned: "куплен", shopNeed: "не хватает XP", qTitle: "📋 Квесты дня", qBricks: "Разбей кирпичей", qWins: "Победи матчей", qScore: "Набери очков за день", qClaim: "Забрать", qDone: "✓", qStreak: "серия дней", clanTitle: "🛡 Клан", clanCreate: "Создать", clanJoin: "Вступить", clanLeave: "Выйти из клана", clanMy: "Мой клан", clanTop: "Топ кланов", clanNone: "вы без клана — создай или вступи!", clanXp: "суммарный XP", tournBtn: "🏆 Турнир", tournNeed: "нужно 4+ игрока", tournChampion: "🏆 Чемпион", tournDuel: "идёт дуёл", tournWait: "следующий дуёл скоро", rpTitle: "🎬 Реплеи", rpWatch: "Смотреть", rpEmpty: "сыграйте матч — он запишется!", rpClose: "← Закрепить просмотр: ←/→ кадры, пробел пауза", setTitle: "Настройки", setMusic: "Музыка", setSfx: "Звуки", setParts: "Частицы", setAll: "все", setLess: "меньше", setOff: "выкл", setMode: "Мышь", setAbs: "абсолютно", setRel: "относительная", setSens: "Сенса", setNet: "Панель сети", setReset: "Сбросить прогресс", setClose: "Готово",
+    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд", edOpen: "Открыть редактор", edName: "Название карты", edRows: "Строк:", edClear: "Очистить", edTest: "▶ Тест", edPublish: "🌍 Опубликовать", edClose: "← Меню", mapsEmpty: "карт пока нет — создай первую!", playMap: "Играть", npTitle: "Сеть", tutTitle1: "Привет! Это PoP - Protocol", tutText1: "Двигай 🏏 ракеткой мышью. Мяч отскакивает и разбивает кирпичи сверху.", tutTitle2: "Капсулы и бонусы", tutText2: "Ловля 🎁 капсул даёт бонусы: лазер, шире ракетка, мульти-мяч. Красные — ловушки!", tutTitle3: "Боссы каждые 3 уровня", tutText3: "Бей мячом в босса. Мины и пули станят ракетку — уворачивайся! Комбо ×5 заряжает ульту (клавиша U).", tutTitle4: "Командная игра", tutText4: "Создай комнату, зови друзей по коду или добавляй ботов. Тренировка: комната с ботами-новичками.", tutNext: "Дальше", tutSkip: "Пропустить", tutTrain: "🎯 Тренировка", shopTitle: "🛍 Магазин скинов", shopBuy: "Купить", shopEquip: "Надеть", shopOn: "надет", shopOwned: "куплен", shopNeed: "не хватает XP", qTitle: "📋 Квесты дня", qBricks: "Разбей кирпичей", qWins: "Победи матчей", qScore: "Набери очков за день", qClaim: "Забрать", qDone: "✓", qStreak: "серия дней", clanTitle: "🛡 Клан", clanCreate: "Создать", clanJoin: "Вступить", clanLeave: "Выйти из клана", clanMy: "Мой клан", clanTop: "Топ кланов", clanNone: "вы без клана — создай или вступи!", clanXp: "суммарный XP", demoTitle: "🎓 Демо-тур для защиты", demoStart: "▶ Запустить демо-тур", demoHint: "7 глав: физика и сеть, кирпичи, капсулы, события, ульты, боссы, турнир. Автопилот + пояснения.", demoSkip: "Пропустить тур", demoNext: "Следующая глава ▶", demoChapter: "Глава", demoC1t: "Физика и сеть", demoC1p: "Физика на сервере: фиксированный шаг 30 Гц. Клиент рисует 60 FPS с интерполяцией Эрмита и предсказанием ракетки — панель сети (⚙) показывает RTT и джиттер. Автопилот ведёт ракетку.",
+ demoC2t: "Кирпичи 6 типов", demoC2p: "Обычные 1–3 HP, камень, взрывной 💥 (цепь по соседям), телепорт 🌀 (переброс мяча), регенерирующий ♻️ (восстанавливает HP), движущийся ⇄ (дрейф, замирает во льду).",
+ demoC3t: "Капсулы и бонусы", demoC3p: "Ловля капсул: лазер, шире ракетка, мульти-мяч, замедление… часть капсул — ловушки. Комбо ×N даёт множитель очков.",
+ demoC4t: "9 живых событий", demoC4p: "Метеоритный дождь, тьма, инверсия, золото ×3, ярость скорости, камнепад, капсульный фонтан, двойной мяч, щит земли. События включены в этой комнате.",
+ demoC5t: "Ульты от комбо", demoC5p: "Комбо ×5 заряжает ульту (максимум 2 заряда). Через 9 секунд автопилот применит ☄ Метеорит — мяч пробивает кирпичи насквозь. Ещё есть ❄ Лед и 🧲 Магнит.",
+ demoC6t: "Боссы", demoC6p: "Босс-раш: боссы подряд. Кракен — щиты-щупальца, Медуза — мины, Золото-босс — бочки, Клон — отражает вниз, Голем — стан, Кубик — ярость. Щиты видны: HP и трещины.",
+ demoC7t: "Турнир и реплеи", demoC7p: "Турнирная сетка: дуёлы 1v1 до чемпиона (кнопка 🏆 при 4+ игроках). Каждый матч записывается — реплеи в меню с плеером: пауза и покадровая перемотка.", tournBtn: "🏆 Турнир", tournNeed: "нужно 4+ игрока", tournChampion: "🏆 Чемпион", tournDuel: "идёт дуёл", tournWait: "следующий дуёл скоро", rpTitle: "🎬 Реплеи", rpWatch: "Смотреть", rpEmpty: "сыграйте матч — он запишется!", rpClose: "← Закрепить просмотр: ←/→ кадры, пробел пауза", setTitle: "Настройки", setMusic: "Музыка", setSfx: "Звуки", setParts: "Частицы", setAll: "все", setLess: "меньше", setOff: "выкл", setMode: "Мышь", setAbs: "абсолютно", setRel: "относительная", setSens: "Сенса", setNet: "Панель сети", setReset: "Сбросить прогресс", setClose: "Готово",
     bots: "Боты:", botLazy: "+ Лентяй", botNormal: "+ Обычный", botPro: "+ Профи",
     hint: "мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции",
     noRooms: "Пока нет комнат — создайте первую!", enter: "Войти", inProgress: "▶ идёт матч", lobbySt: "лобби",
@@ -24,7 +30,13 @@ const I18N = {
     connecting: "connecting…", online: "server online", offline: "server unreachable, reconnecting…",
     roomName: "room name", roomPass: "password (optional)", create: "Create",
     joinCode: "room code", joinPass: "password", joinByCode: "Join by code", refresh: "↻ refresh",
-    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges", edOpen: "Open editor", edName: "Map name", edRows: "Rows:", edClear: "Clear", edTest: "▶ Test", edPublish: "🌍 Publish", edClose: "← Menu", mapsEmpty: "no maps yet — build the first one!", playMap: "Play", npTitle: "Network", tutTitle1: "Hi! This is PoP - Protocol", tutText1: "Move the 🏏 paddle with your mouse. The ball bounces and breaks bricks above.", tutTitle2: "Capsules & power-ups", tutText2: "Catch 🎁 capsules for bonuses: laser, wider paddle, multi-ball. Red ones are traps!", tutTitle3: "Bosses every 3 levels", tutText3: "Smash the boss with your ball. Mines and bullets stun your paddle — dodge! Combo ×5 charges your ultimate (key U).", tutTitle4: "Play together", tutText4: "Create a room, share the code or add bots. Training: a room with lazy bots.", tutNext: "Next", tutSkip: "Skip", tutTrain: "🎯 Training", shopTitle: "🛍 Skin shop", shopBuy: "Buy", shopEquip: "Equip", shopOn: "equipped", shopOwned: "owned", shopNeed: "not enough XP", qTitle: "📋 Daily quests", qBricks: "Break bricks", qWins: "Win matches", qScore: "Score points today", qClaim: "Claim", qDone: "✓", qStreak: "day streak", clanTitle: "🛡 Clan", clanCreate: "Create", clanJoin: "Join", clanLeave: "Leave clan", clanMy: "My clan", clanTop: "Clan top", clanNone: "no clan yet — create or join!", clanXp: "total XP", tournBtn: "🏆 Tournament", tournNeed: "need 4+ players", tournChampion: "🏆 Champion", tournDuel: "duel in progress", tournWait: "next duel soon", rpTitle: "🎬 Replays", rpWatch: "Watch", rpEmpty: "play a match — it gets recorded!", rpClose: "← Close · ←/→ frames, space pause", setTitle: "Settings", setMusic: "Music", setSfx: "SFX", setParts: "Particles", setAll: "all", setLess: "less", setOff: "off", setMode: "Mouse", setAbs: "absolute", setRel: "relative", setSens: "Sensitivity", setNet: "Net panel", setReset: "Reset progress", setClose: "Done",
+    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges", edOpen: "Open editor", edName: "Map name", edRows: "Rows:", edClear: "Clear", edTest: "▶ Test", edPublish: "🌍 Publish", edClose: "← Menu", mapsEmpty: "no maps yet — build the first one!", playMap: "Play", npTitle: "Network", tutTitle1: "Hi! This is PoP - Protocol", tutText1: "Move the 🏏 paddle with your mouse. The ball bounces and breaks bricks above.", tutTitle2: "Capsules & power-ups", tutText2: "Catch 🎁 capsules for bonuses: laser, wider paddle, multi-ball. Red ones are traps!", tutTitle3: "Bosses every 3 levels", tutText3: "Smash the boss with your ball. Mines and bullets stun your paddle — dodge! Combo ×5 charges your ultimate (key U).", tutTitle4: "Play together", tutText4: "Create a room, share the code or add bots. Training: a room with lazy bots.", tutNext: "Next", tutSkip: "Skip", tutTrain: "🎯 Training", shopTitle: "🛍 Skin shop", shopBuy: "Buy", shopEquip: "Equip", shopOn: "equipped", shopOwned: "owned", shopNeed: "not enough XP", qTitle: "📋 Daily quests", qBricks: "Break bricks", qWins: "Win matches", qScore: "Score points today", qClaim: "Claim", qDone: "✓", qStreak: "day streak", clanTitle: "🛡 Clan", clanCreate: "Create", clanJoin: "Join", clanLeave: "Leave clan", clanMy: "My clan", clanTop: "Clan top", clanNone: "no clan yet — create or join!", clanXp: "total XP", demoTitle: "🎓 Defense demo tour", demoStart: "▶ Start demo tour", demoHint: "7 chapters: physics & net, bricks, capsules, events, ultimates, bosses, tournament. Autopilot + narration.", demoSkip: "Skip tour", demoNext: "Next chapter ▶", demoChapter: "Chapter", demoC1t: "Physics & netcode", demoC1p: "Physics on the server: fixed 30 Hz step. The client renders 60 FPS with Hermite interpolation and paddle prediction — the net panel (⚙) shows RTT and jitter. Autopilot drives the paddle.",
+ demoC2t: "6 brick types", demoC2p: "Normal 1–3 HP, stone, explosive 💥 (chain blast), teleport 🌀 (relocates the ball), regenerating ♻️ (heals HP), moving ⇄ (drifts, freezes under ice).",
+ demoC3t: "Capsules & power-ups", demoC3p: "Catch capsules: laser, wider paddle, multi-ball, slow-down… some are traps. Combo ×N multiplies score.",
+ demoC4t: "9 live events", demoC4p: "Meteor rain, darkness, inversion, gold ×3, speed frenzy, rockfall, capsule fountain, double ball, ground shield. Events are on in this room.",
+ demoC5t: "Ultimates from combo", demoC5p: "Combo ×5 charges an ultimate (max 2). In 9 seconds autopilot triggers ☄ Meteor — the ball pierces bricks. Also ❄ Ice Wave and 🧲 Magnet.",
+ demoC6t: "Bosses", demoC6p: "Boss Rush: bosses in a row. Kraken — shield tentacles, Medusa — mines, Gold Baron — barrels, Mirror — kicks down, Golem — stun, Cube — enrage. Shields show HP and cracks.",
+ demoC7t: "Tournament & replays", demoC7p: "Bracket: 1v1 duels up to the champion (🏆 button at 4+ players). Every match is recorded — replays in the menu with a player: pause and frame stepping.", tournBtn: "🏆 Tournament", tournNeed: "need 4+ players", tournChampion: "🏆 Champion", tournDuel: "duel in progress", tournWait: "next duel soon", rpTitle: "🎬 Replays", rpWatch: "Watch", rpEmpty: "play a match — it gets recorded!", rpClose: "← Close · ←/→ frames, space pause", setTitle: "Settings", setMusic: "Music", setSfx: "SFX", setParts: "Particles", setAll: "all", setLess: "less", setOff: "off", setMode: "Mouse", setAbs: "absolute", setRel: "relative", setSens: "Sensitivity", setNet: "Net panel", setReset: "Reset progress", setClose: "Done",
     bots: "Bots:", botLazy: "+ Lazy", botNormal: "+ Normal", botPro: "+ Pro",
     hint: "mouse — paddle · click/space — launch · 1–8 — emotes",
     noRooms: "No rooms yet — create the first one!", enter: "Join", inProgress: "▶ playing", lobbySt: "lobby",
@@ -1585,6 +1597,98 @@ window.addEventListener("DOMContentLoaded", async () => {
     send(P.mGetReplays());
   };
   window.__loadReplays = loadReplays;
+
+  /* ---------- демо-тур для защиты ---------- */
+  const DEMO_MAP = [
+    "eeee111111",
+    "11t1111g11",
+    "1111mm1111",
+    "22g11111e2",
+    "3333333333",
+  ];
+  const DEMO_CH = [
+    { title: "demoC1t", text: "demoC1p", dur: 14000, room: { mode: 0, rows: null, events: false, bosses: false, speed: 1.0 } },
+    { title: "demoC2t", text: "demoC2p", dur: 15000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 } },
+    { title: "demoC3t", text: "demoC3p", dur: 14000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 } },
+    { title: "demoC4t", text: "demoC4p", dur: 16000, room: { mode: 0, rows: null, events: true, bosses: false, speed: 1.0 } },
+    { title: "demoC5t", text: "demoC5p", dur: 16000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 } },
+    { title: "demoC6t", text: "demoC6p", dur: 18000, room: { mode: 1, rows: null, events: false, bosses: true, speed: 1.0 } },
+    { title: "demoC7t", text: "demoC7p", dur: 16000, room: { mode: 0, rows: null, events: false, bosses: false, speed: 1.0 } },
+  ];
+  let demoState = null; // { ch, timer, sweep }
+
+  const demoCard = () => document.getElementById("demo-card");
+  const demoShow = (chIdx) => {
+    const card = demoCard();
+    if (!card) return;
+    const ch = DEMO_CH[chIdx];
+    card.style.display = "block";
+    document.getElementById("demo-title").textContent = `${t("demoChapter")} ${chIdx + 1}/${DEMO_CH.length}: ${t(ch.title)}`;
+    document.getElementById("demo-text").textContent = t(ch.text);
+    const prog = document.getElementById("demo-progress");
+    prog.innerHTML = "";
+    DEMO_CH.forEach((_, k) => {
+      const sp = document.createElement("span");
+      if (k < chIdx) sp.className = "done";
+      if (k === chIdx) sp.className = "cur";
+      prog.appendChild(sp);
+    });
+  };
+
+  const demoRoom = async (cfg, name) => {
+    // выйти из текущей комнаты, создать новую с нужными настройками
+    if (S.room) { send(P.mLeave()); await new Promise((r) => setTimeout(r, 450)); }
+    send(P.mCreateRoom(name, null, cfg.mode, { max_players: 10, events_enabled: cfg.events, bosses_enabled: cfg.bosses, speed_factor: cfg.speed, custom_rows: cfg.rows }));
+    await new Promise((r) => setTimeout(r, 500));
+    send(P.mAddBot(2)); // профи-бот играет сам
+    await new Promise((r) => setTimeout(r, 200));
+    send(P.mReady(true));
+    await new Promise((r) => setTimeout(r, 150));
+    send(P.mStart());
+    await new Promise((r) => setTimeout(r, 700));
+    send(P.mAction()); // запуск мяча игрока: комбо и ульты работают
+    await new Promise((r) => setTimeout(r, 400));
+  };
+
+  const demoSweep = () => { // автопилот: ракетка плавно метёт поле
+    if (!S.latest) return;
+    const t = (performance.now() / 2600) % 1;
+    S.inputX = 40 + (S.latest.field_w - 80) * (0.5 - 0.5 * Math.cos(t * Math.PI * 2));
+  };
+
+  const demoStop = () => {
+    if (demoState) { clearInterval(demoState.timer); demoState = null; }
+    if (demoCard()) demoCard().style.display = "none";
+  };
+  window.__demoStop = demoStop;
+
+  const demoChapter = async (idx) => {
+    demoStop();
+    if (idx >= DEMO_CH.length) { showScreen("menu"); return; }
+    demoShow(idx);
+    showScreen("menu");
+    const ch = DEMO_CH[idx];
+    await demoRoom(ch.room, "🎓 Демо: " + t(ch.title));
+    showScreen("game");
+    demoState = { ch: idx, timer: setInterval(demoSweep, 50) };
+    // ульты в главе 5: зарядим комбо-заряд (бот ломает кирпичи) и используем ульту метеорита
+    if (idx === 4) {
+      send(P.mSetUlt(2));
+      // ждать заряд от комбо и применить метеорит
+      const poll = setInterval(() => {
+        const me = S.latest && S.latest.players.find((p) => p.id === S.myId);
+        if (me && me.ult_charge > 0) { send(P.mUseUlt()); clearInterval(poll); }
+      }, 400);
+      setTimeout(() => clearInterval(poll), 15000);
+    }
+    setTimeout(() => { if (demoState && demoState.ch === idx) demoChapter(idx + 1); }, ch.dur);
+  };
+
+  window.__demoStart = () => {
+    showScreen("menu");
+    demoChapter(0);
+  };
+  document.getElementById("btn-demo").onclick = () => window.__demoStart();
 
   window.__startReplayPlayer = startReplayPlayer;
   function startReplayPlayer(meta, frames) {

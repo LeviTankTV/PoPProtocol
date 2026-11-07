@@ -153,6 +153,15 @@
   .clan-row b:first-child{ color:#5f27cd; }
   .card-replays{ background:linear-gradient(135deg,#ffeef0,#fff0d9); }
   .card-rooms #bracket{ max-height:220px; }
+  .card-demo{ background:linear-gradient(135deg,#fde8ff,#e3f4ff); }
+  #demo-card{ position:fixed; left:16px; bottom:16px; z-index:52; max-width:420px; background:#fff;
+    border:4px solid #2f2b44; border-radius:18px; padding:14px 18px; display:none; }
+  #demo-card h4{ margin:0 0 6px; color:#ff6b6b; }
+  #demo-card p{ margin:0; color:#3b3552; font-size:.95rem; }
+  #demo-progress{ margin-top:8px; display:flex; gap:4px; }
+  #demo-progress span{ width:16px; height:8px; border-radius:4px; background:#e6e0f8; }
+  #demo-progress span.done{ background:#1dd1a1; }
+  #demo-progress span.cur{ background:#ff6b6b; }
   @media (max-width: 720px) {
     h1 { font-size: 1.6rem; }
     .menu-row { flex-wrap: wrap; }
@@ -216,7 +225,12 @@
         </div>
         <div id="rooms"></div>
       </section>
-                          <section class="menu-card card-replays">
+                              <section class="menu-card card-demo">
+      <h3 data-i18n="demoTitle">🎓 Демо-тур для защиты</h3>
+      <button id="btn-demo" class="primary" data-i18n="demoStart">▶ Запустить демо-тур</button>
+      <div style="font-size:.85rem;color:#3b3552" data-i18n="demoHint">7 глав: физика и сеть, кирпичи, капсулы, события, ульты, боссы, турнир. Автопилот + пояснения.</div>
+    </section>
+<section class="menu-card card-replays">
       <h3 data-i18n="rpTitle">🎬 Реплеи</h3>
       <div id="replays-list" class="maps-list"></div>
     </section>
@@ -291,6 +305,11 @@
     </div>
 
     <!-- МАТЧ -->
+    <div id="demo-card">
+      <h4 id="demo-title"></h4>
+      <p id="demo-text"></p>
+      <div id="demo-progress"></div>
+    </div>
     <div id="tutorial" style="display:none">
       <div class="tut-card">
         <h2 id="tut-title"></h2>
