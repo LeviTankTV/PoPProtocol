@@ -10,7 +10,7 @@ const I18N = {
     connecting: "подключение…", online: "сервер онлайн", offline: "сервер недоступен, переподключение…",
     roomName: "название комнаты", roomPass: "пароль (необязательно)", create: "Создать",
     joinCode: "код комнаты", joinPass: "пароль", joinByCode: "Войти по коду", refresh: "↻ обновить",
-    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд", edOpen: "Открыть редактор", edName: "Название карты", edRows: "Строк:", edClear: "Очистить", edTest: "▶ Тест", edPublish: "🌍 Опубликовать", edClose: "← Меню", mapsEmpty: "карт пока нет — создай первую!", playMap: "Играть", npTitle: "Сеть", tutTitle1: "Привет! Это PoP - Protocol", tutText1: "Двигай 🏏 ракеткой мышью. Мяч отскакивает и разбивает кирпичи сверху.", tutTitle2: "Капсулы и бонусы", tutText2: "Ловля 🎁 капсул даёт бонусы: лазер, шире ракетка, мульти-мяч. Красные — ловушки!", tutTitle3: "Боссы каждые 3 уровня", tutText3: "Бей мячом в босса. Мины и пули станят ракетку — уворачивайся! Комбо ×5 заряжает ульту (клавиша U).", tutTitle4: "Командная игра", tutText4: "Создай комнату, зови друзей по коду или добавляй ботов. Тренировка: комната с ботами-новичками.", tutNext: "Дальше", tutSkip: "Пропустить", tutTrain: "🎯 Тренировка", shopTitle: "🛍 Магазин скинов", shopBuy: "Купить", shopEquip: "Надеть", shopOn: "надет", shopOwned: "куплен", shopNeed: "не хватает XP", qTitle: "📋 Квесты дня", qBricks: "Разбей кирпичей", qWins: "Победи матчей", qScore: "Набери очков за день", qClaim: "Забрать", qDone: "✓", qStreak: "серия дней", setTitle: "Настройки", setMusic: "Музыка", setSfx: "Звуки", setParts: "Частицы", setAll: "все", setLess: "меньше", setOff: "выкл", setMode: "Мышь", setAbs: "абсолютно", setRel: "относительная", setSens: "Сенса", setNet: "Панель сети", setReset: "Сбросить прогресс", setClose: "Готово",
+    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд", edOpen: "Открыть редактор", edName: "Название карты", edRows: "Строк:", edClear: "Очистить", edTest: "▶ Тест", edPublish: "🌍 Опубликовать", edClose: "← Меню", mapsEmpty: "карт пока нет — создай первую!", playMap: "Играть", npTitle: "Сеть", tutTitle1: "Привет! Это PoP - Protocol", tutText1: "Двигай 🏏 ракеткой мышью. Мяч отскакивает и разбивает кирпичи сверху.", tutTitle2: "Капсулы и бонусы", tutText2: "Ловля 🎁 капсул даёт бонусы: лазер, шире ракетка, мульти-мяч. Красные — ловушки!", tutTitle3: "Боссы каждые 3 уровня", tutText3: "Бей мячом в босса. Мины и пули станят ракетку — уворачивайся! Комбо ×5 заряжает ульту (клавиша U).", tutTitle4: "Командная игра", tutText4: "Создай комнату, зови друзей по коду или добавляй ботов. Тренировка: комната с ботами-новичками.", tutNext: "Дальше", tutSkip: "Пропустить", tutTrain: "🎯 Тренировка", shopTitle: "🛍 Магазин скинов", shopBuy: "Купить", shopEquip: "Надеть", shopOn: "надет", shopOwned: "куплен", shopNeed: "не хватает XP", qTitle: "📋 Квесты дня", qBricks: "Разбей кирпичей", qWins: "Победи матчей", qScore: "Набери очков за день", qClaim: "Забрать", qDone: "✓", qStreak: "серия дней", clanTitle: "🛡 Клан", clanCreate: "Создать", clanJoin: "Вступить", clanLeave: "Выйти из клана", clanMy: "Мой клан", clanTop: "Топ кланов", clanNone: "вы без клана — создай или вступи!", clanXp: "суммарный XP", setTitle: "Настройки", setMusic: "Музыка", setSfx: "Звуки", setParts: "Частицы", setAll: "все", setLess: "меньше", setOff: "выкл", setMode: "Мышь", setAbs: "абсолютно", setRel: "относительная", setSens: "Сенса", setNet: "Панель сети", setReset: "Сбросить прогресс", setClose: "Готово",
     bots: "Боты:", botLazy: "+ Лентяй", botNormal: "+ Обычный", botPro: "+ Профи",
     hint: "мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции",
     noRooms: "Пока нет комнат — создайте первую!", enter: "Войти", inProgress: "▶ идёт матч", lobbySt: "лобби",
@@ -24,7 +24,7 @@ const I18N = {
     connecting: "connecting…", online: "server online", offline: "server unreachable, reconnecting…",
     roomName: "room name", roomPass: "password (optional)", create: "Create",
     joinCode: "room code", joinPass: "password", joinByCode: "Join by code", refresh: "↻ refresh",
-    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges", edOpen: "Open editor", edName: "Map name", edRows: "Rows:", edClear: "Clear", edTest: "▶ Test", edPublish: "🌍 Publish", edClose: "← Menu", mapsEmpty: "no maps yet — build the first one!", playMap: "Play", npTitle: "Network", tutTitle1: "Hi! This is PoP - Protocol", tutText1: "Move the 🏏 paddle with your mouse. The ball bounces and breaks bricks above.", tutTitle2: "Capsules & power-ups", tutText2: "Catch 🎁 capsules for bonuses: laser, wider paddle, multi-ball. Red ones are traps!", tutTitle3: "Bosses every 3 levels", tutText3: "Smash the boss with your ball. Mines and bullets stun your paddle — dodge! Combo ×5 charges your ultimate (key U).", tutTitle4: "Play together", tutText4: "Create a room, share the code or add bots. Training: a room with lazy bots.", tutNext: "Next", tutSkip: "Skip", tutTrain: "🎯 Training", shopTitle: "🛍 Skin shop", shopBuy: "Buy", shopEquip: "Equip", shopOn: "equipped", shopOwned: "owned", shopNeed: "not enough XP", qTitle: "📋 Daily quests", qBricks: "Break bricks", qWins: "Win matches", qScore: "Score points today", qClaim: "Claim", qDone: "✓", qStreak: "day streak", setTitle: "Settings", setMusic: "Music", setSfx: "SFX", setParts: "Particles", setAll: "all", setLess: "less", setOff: "off", setMode: "Mouse", setAbs: "absolute", setRel: "relative", setSens: "Sensitivity", setNet: "Net panel", setReset: "Reset progress", setClose: "Done",
+    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges", edOpen: "Open editor", edName: "Map name", edRows: "Rows:", edClear: "Clear", edTest: "▶ Test", edPublish: "🌍 Publish", edClose: "← Menu", mapsEmpty: "no maps yet — build the first one!", playMap: "Play", npTitle: "Network", tutTitle1: "Hi! This is PoP - Protocol", tutText1: "Move the 🏏 paddle with your mouse. The ball bounces and breaks bricks above.", tutTitle2: "Capsules & power-ups", tutText2: "Catch 🎁 capsules for bonuses: laser, wider paddle, multi-ball. Red ones are traps!", tutTitle3: "Bosses every 3 levels", tutText3: "Smash the boss with your ball. Mines and bullets stun your paddle — dodge! Combo ×5 charges your ultimate (key U).", tutTitle4: "Play together", tutText4: "Create a room, share the code or add bots. Training: a room with lazy bots.", tutNext: "Next", tutSkip: "Skip", tutTrain: "🎯 Training", shopTitle: "🛍 Skin shop", shopBuy: "Buy", shopEquip: "Equip", shopOn: "equipped", shopOwned: "owned", shopNeed: "not enough XP", qTitle: "📋 Daily quests", qBricks: "Break bricks", qWins: "Win matches", qScore: "Score points today", qClaim: "Claim", qDone: "✓", qStreak: "day streak", clanTitle: "🛡 Clan", clanCreate: "Create", clanJoin: "Join", clanLeave: "Leave clan", clanMy: "My clan", clanTop: "Clan top", clanNone: "no clan yet — create or join!", clanXp: "total XP", setTitle: "Settings", setMusic: "Music", setSfx: "SFX", setParts: "Particles", setAll: "all", setLess: "less", setOff: "off", setMode: "Mouse", setAbs: "absolute", setRel: "relative", setSens: "Sensitivity", setNet: "Net panel", setReset: "Reset progress", setClose: "Done",
     bots: "Bots:", botLazy: "+ Lazy", botNormal: "+ Normal", botPro: "+ Pro",
     hint: "mouse — paddle · click/space — launch · 1–8 — emotes",
     noRooms: "No rooms yet — create the first one!", enter: "Join", inProgress: "▶ playing", lobbySt: "lobby",
@@ -181,7 +181,7 @@ function handle(m) {
       break;
     case "Welcome":
       hideLoading();
-      if (window.__loadShop) { window.__loadShop(); setTimeout(() => { window.__loadShop && window.__loadShop(); window.__loadQuests && window.__loadQuests(); }, 900); }
+      if (window.__loadShop) { window.__loadShop(); setTimeout(() => { window.__loadShop && window.__loadShop(); window.__loadQuests && window.__loadQuests(); window.__loadClan && window.__loadClan(); }, 900); }
       maybeTutorial();
       S.myId = m.player_id; S.myName = m.name; S.token = m.token;
       localStorage.setItem("pop_token", m.token);
@@ -351,7 +351,7 @@ function onSnapshot(s) {
 function showScreen(name) {
   for (const s of ["menu", "room", "game", "editor"]) document.getElementById("screen-" + s).style.display = s === name ? "block" : "none";
   document.getElementById("over").style.display = "none";
-  if (name === "menu") { leaderboardShown = false; send(P.mRoomList()); if (window.__loadTop) window.__loadTop(); if (window.__loadMaps) window.__loadMaps(); if (window.__loadShop) window.__loadShop(); if (window.__loadQuests) window.__loadQuests(); }
+  if (name === "menu") { leaderboardShown = false; send(P.mRoomList()); if (window.__loadTop) window.__loadTop(); if (window.__loadMaps) window.__loadMaps(); if (window.__loadShop) window.__loadShop(); if (window.__loadQuests) window.__loadQuests(); if (window.__loadClan) window.__loadClan(); }
   if (name === "room") renderRoom();
   if (name === "editor" && window.__renderEditor) window.__renderEditor();
   if (name === "game") {
@@ -1480,6 +1480,48 @@ window.addEventListener("DOMContentLoaded", async () => {
     } catch (e) { box.innerHTML = ""; }
   };
   window.__loadQuests = loadQuests;
+
+  /* ---------- кланы ---------- */
+  const loadClan = async () => {
+    const mine = document.getElementById("clan-mine");
+    const top = document.getElementById("clan-top");
+    if (!mine || !top) return;
+    const me = S.myName || localStorage.getItem("pop_name") || "";
+    try {
+      const clans = await fetch("/api/clans").then((r) => r.json());
+      const my = clans.find((c) => c.owner === me) || null;
+      // проверка членства: мой клан — тот где я владелец; полный список членства сервер не даёт — показываем по совпадению ниже
+      mine.innerHTML = "";
+      if (my) {
+        const row = document.createElement("div");
+        row.className = "clan-row";
+        row.innerHTML = `<b>[${my.tag}]</b><span>${my.name}</span><span style="color:#3b3552">${my.members} 👥 · ${my.xp} ${t("clanXp")}</span>`;
+        const leave = document.createElement("button");
+        leave.className = "small";
+        leave.textContent = t("clanLeave");
+        leave.onclick = () => { send(P.mClanLeave()); setTimeout(loadClan, 400); };
+        row.appendChild(leave);
+        mine.appendChild(row);
+      } else {
+        mine.innerHTML = `<span style="font-size:.9rem;color:#3b3552">${t("clanNone")}</span>`;
+      }
+      document.getElementById("clan-create-row").style.display = my ? "none" : "flex";
+      document.getElementById("clan-join-row").style.display = my ? "none" : "flex";
+      top.innerHTML = clans.length ? clans.map((c) => `<div class="clan-row"><b>[${c.tag}]</b><span>${c.name}</span><span style="color:#3b3552">${c.members} 👥 · ${c.xp} ${t("clanXp")}</span></div>`).join("") : "";
+    } catch (e) {}
+  };
+  window.__loadClan = loadClan;
+  document.getElementById("btn-clan-create").onclick = () => {
+    const tag = document.getElementById("clan-tag").value.trim().toUpperCase();
+    const name = document.getElementById("clan-name").value.trim();
+    send(P.mClanCreate(tag, name));
+    setTimeout(loadClan, 500);
+  };
+  document.getElementById("btn-clan-join").onclick = () => {
+    const tag = document.getElementById("clan-join-tag").value.trim().toUpperCase();
+    send(P.mClanJoin(tag));
+    setTimeout(loadClan, 500);
+  };
   const loadTop = async () => {
     const box = document.getElementById("top-list");
     try {

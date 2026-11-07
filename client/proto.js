@@ -67,6 +67,9 @@ const mRemoveBot = (id) => new W().u32(14).u32(id).bytes();
 const mSetColor = (color) => new W().u32(15).u8(color).bytes();
 const mBuySkin = (skin) => new W().u32(20).u8(skin).bytes();
 const mClaimQuest = (index) => new W().u32(22).u8(index).bytes();
+const mClanCreate = (tag, name) => new W().u32(23).str(tag).str(name).bytes();
+const mClanJoin = (tag) => new W().u32(24).str(tag).bytes();
+const mClanLeave = () => new W().u32(25).bytes();
 const mEquipSkin = (skin) => new W().u32(21).u8(skin).bytes();
 const mPublishMap = (name, rows) => { const w = new W().u32(18).str(name).u64(rows.length); rows.forEach((rr) => w.str(rr)); return w.bytes(); };
 const mSetUlt = (ult) => new W().u32(16).u8(ult).bytes();
@@ -140,4 +143,4 @@ function readSnapshot(r) {
   return { t: "Snapshot", tick, field_w, field_h, phase, level, players, balls, bricks_upsert, bricks_removed, capsules, bullets, events, boss, combo, scores, fx, projs };
 }
 
-window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, mSetUlt, mUseUlt, mPublishMap, mBuySkin, mEquipSkin, mClaimQuest, decode };
+window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, mSetUlt, mUseUlt, mPublishMap, mBuySkin, mEquipSkin, mClaimQuest, mClanCreate, mClanJoin, mClanLeave, decode };

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::store::ClanInfo;
 use popproto_core::{
     BotLevel, ErrCode, GameMode, MapInfo, PlayerInfo, RoomPhase, RoomSettings, RoomState,
     RoomSummary, ServerMsg, BOT_ID_BASE, MAX_PLAYERS, MAX_SPECTATORS, RECONNECT_WINDOW_SECS,
@@ -563,6 +564,34 @@ impl Lobby {
             .await
             .map_err(LobbyError::Backend)
             .map(|_| ())
+    }
+
+    /// Создать клан.
+    pub async fn clan_create(
+        &self,
+        owner_id: u32,
+        owner_name: &str,
+        tag: &str,
+        name: &str,
+    ) -> Result<(), String> {
+        self.store
+            .clan_create(owner_id, owner_name, tag, name)
+            .await
+    }
+
+    /// Вступить в клан.
+    pub async fn clan_join(&self, player_id: u32, tag: &str) -> Result<(), String> {
+        self.store.clan_join(player_id, tag).await
+    }
+
+    /// Покинуть клан.
+    pub async fn clan_leave(&self, player_id: u32) -> Result<(), String> {
+        self.store.clan_leave(player_id).await
+    }
+
+    /// Топ кланов.
+    pub async fn clan_top(&self, limit: usize) -> Vec<ClanInfo> {
+        self.store.clan_top(limit).await
     }
 
     /// Забрать награду квеста дня.

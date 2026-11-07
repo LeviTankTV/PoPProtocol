@@ -212,6 +212,52 @@ impl Store {
         }
     }
 
+    /// Создать клан (создатель становится участником).
+    pub async fn clan_create(
+        &self,
+        owner_id: u32,
+        owner_name: &str,
+        tag: &str,
+        name: &str,
+    ) -> Result<(), String> {
+        match self {
+            Store::Memory(m) => m.clan_create(owner_id, owner_name, tag, name).await,
+            Store::Mongo(m) => m.clan_create(owner_id, owner_name, tag, name).await,
+        }
+    }
+
+    /// Вступить в клан по тегу.
+    pub async fn clan_join(&self, player_id: u32, tag: &str) -> Result<(), String> {
+        match self {
+            Store::Memory(m) => m.clan_join(player_id, tag).await,
+            Store::Mongo(m) => m.clan_join(player_id, tag).await,
+        }
+    }
+
+    /// Покинуть клан.
+    pub async fn clan_leave(&self, player_id: u32) -> Result<(), String> {
+        match self {
+            Store::Memory(m) => m.clan_leave(player_id).await,
+            Store::Mongo(m) => m.clan_leave(player_id).await,
+        }
+    }
+
+    /// Клан игрока (None — без клана).
+    pub async fn clan_of(&self, player_id: u32) -> Option<ClanInfo> {
+        match self {
+            Store::Memory(m) => m.clan_of(player_id).await,
+            Store::Mongo(m) => m.clan_of(player_id).await,
+        }
+    }
+
+    /// Топ кланов по суммарному XP.
+    pub async fn clan_top(&self, limit: usize) -> Vec<ClanInfo> {
+        match self {
+            Store::Memory(m) => m.clan_top(limit).await,
+            Store::Mongo(m) => m.clan_top(limit).await,
+        }
+    }
+
     /// Купить скин за XP. Ok(true) — куплен, Ok(false) — уже есть, Err — не хватает XP.
     pub async fn buy_skin(&self, player_id: u32, skin: u8, price: u32) -> Result<bool, String> {
         match self {
@@ -259,6 +305,16 @@ pub struct LeaderEntry {
     pub name: String,
     pub xp: u32,
     pub elo: i32,
+}
+
+/// Клан для списка и меню.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ClanInfo {
+    pub tag: String,
+    pub name: String,
+    pub owner: String,
+    pub members: u32,
+    pub xp: u64,
 }
 
 /// Профиль игрока для HTTP /api/profile.
@@ -314,6 +370,12 @@ struct MemoryInner {
     matches: Vec<(u32, MatchRecord)>,
     /// Квесты дня: (дата, прогресс[3], заявки[3], стрик, последний день с матчем).
     daily: HashMap<u32, DailyState>,
+    /// Кланы по тегу.
+    clans: HashMap<String, ClanInfo>,
+    /// Тег клана игрока.
+    player_clan: HashMap<u32, String>,
+    /// XP игроков (для суммарного XP клана).
+    xp_by_player: HashMap<u32, u32>,
     next_id: u32,
 }
 
@@ -443,6 +505,82 @@ impl MemoryStore {
             rec.xp += reward;
         }
         Ok(reward)
+    }
+    async fn clan_create(
+        &self,
+        owner_id: u32,
+        owner_name: &str,
+        tag: &str,
+        name: &str,
+    ) -> Result<(), String> {
+        let mut inner = self.inner.lock().await;
+        if inner.clans.contains_key(tag) {
+            return Err("такой тег уже занят".into());
+        }
+        inner.clans.insert(
+            tag.into(),
+            ClanInfo {
+                tag: tag.into(),
+                name: name.into(),
+                owner: owner_name.into(),
+                members: 1,
+                xp: 0,
+            },
+        );
+        inner.player_clan.insert(owner_id, tag.into());
+        Ok(())
+    }
+
+    async fn clan_join(&self, player_id: u32, tag: &str) -> Result<(), String> {
+        let mut inner = self.inner.lock().await;
+        let clan = inner.clans.get_mut(tag).ok_or("клан не найден")?;
+        clan.members += 1;
+        inner.player_clan.insert(player_id, tag.into());
+        Ok(())
+    }
+
+    async fn clan_leave(&self, player_id: u32) -> Result<(), String> {
+        let mut inner = self.inner.lock().await;
+        let Some(tag) = inner.player_clan.remove(&player_id) else {
+            return Err("вы без клана".into());
+        };
+        if let Some(clan) = inner.clans.get_mut(&tag) {
+            clan.members = clan.members.saturating_sub(1);
+        }
+        Ok(())
+    }
+
+    async fn clan_of(&self, player_id: u32) -> Option<ClanInfo> {
+        let inner = self.inner.lock().await;
+        let tag = inner.player_clan.get(&player_id)?;
+        let clan = inner.clans.get(tag)?.clone();
+        let xp = inner
+            .player_clan
+            .iter()
+            .filter(|(_, t)| t.as_str() == clan.tag)
+            .filter_map(|(pid, _)| inner.xp_by_player.get(pid).map(|x| *x as u64))
+            .sum();
+        Some(ClanInfo { xp, ..clan })
+    }
+
+    async fn clan_top(&self, limit: usize) -> Vec<ClanInfo> {
+        let inner = self.inner.lock().await;
+        let mut list: Vec<ClanInfo> = inner
+            .clans
+            .values()
+            .map(|c| {
+                let xp = inner
+                    .player_clan
+                    .iter()
+                    .filter(|(_, t)| t.as_str() == c.tag)
+                    .filter_map(|(pid, _)| inner.xp_by_player.get(pid).map(|x| *x as u64))
+                    .sum();
+                ClanInfo { xp, ..c.clone() }
+            })
+            .collect();
+        list.sort_by_key(|c| std::cmp::Reverse(c.xp));
+        list.truncate(limit);
+        list
     }
 
     async fn buy_skin(&self, player_id: u32, skin: u8, price: u32) -> Result<bool, String> {
@@ -618,6 +756,7 @@ pub struct MongoStore {
     sessions: mongodb::Collection<Document>,
     maps: mongodb::Collection<Document>,
     matches: mongodb::Collection<Document>,
+    clans: mongodb::Collection<Document>,
 }
 
 impl MongoStore {
@@ -633,6 +772,7 @@ impl MongoStore {
         let sessions = db.collection("sessions");
         let maps = db.collection("maps");
         let matches = db.collection("matches");
+        let clans = db.collection("clans");
 
         let name_opts = IndexOptions::builder().unique(true).build();
         players
@@ -652,6 +792,7 @@ impl MongoStore {
             sessions,
             maps,
             matches,
+            clans,
         })
     }
     fn quest_goals(seed: u32, date: &str) -> [(u8, u32, u32); 3] {
@@ -799,6 +940,153 @@ impl MongoStore {
             return Err("уже получено".into());
         }
         Ok(reward)
+    }
+    async fn clan_create(
+        &self,
+        owner_id: u32,
+        owner_name: &str,
+        tag: &str,
+        name: &str,
+    ) -> Result<(), String> {
+        let exists = self
+            .clans
+            .find_one(doc! { "_id": tag })
+            .await
+            .map_err(|e| e.to_string())?;
+        if exists.is_some() {
+            return Err("такой тег уже занят".into());
+        }
+        self.clans
+            .insert_one(doc! {
+                "_id": tag,
+                "name": name,
+                "owner": owner_name,
+                "members": [owner_id as i64],
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+        self.set_player_clan(owner_id, tag).await;
+        Ok(())
+    }
+
+    async fn clan_join(&self, player_id: u32, tag: &str) -> Result<(), String> {
+        let res = self
+            .clans
+            .update_one(
+                doc! { "_id": tag },
+                doc! { "$addToSet": { "members": player_id as i64 } },
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        if res.matched_count == 0 {
+            return Err("клан не найден".into());
+        }
+        self.set_player_clan(player_id, tag).await;
+        Ok(())
+    }
+
+    async fn clan_leave(&self, player_id: u32) -> Result<(), String> {
+        let tag = self
+            .players
+            .find_one(doc! { "_id": player_id as i64 })
+            .await
+            .map_err(|e| e.to_string())?
+            .and_then(|d| d.get_str("clan").ok().map(|s| s.to_string()));
+        let Some(tag) = tag else {
+            return Err("вы без клана".into());
+        };
+        let _ = self
+            .clans
+            .update_one(
+                doc! { "_id": &tag },
+                doc! { "$pull": { "members": player_id as i64 } },
+            )
+            .await;
+        let _ = self
+            .players
+            .update_one(
+                doc! { "_id": player_id as i64 },
+                doc! { "$unset": { "clan": "" } },
+            )
+            .await;
+        Ok(())
+    }
+
+    async fn set_player_clan(&self, player_id: u32, tag: &str) {
+        let _ = self
+            .players
+            .update_one(
+                doc! { "_id": player_id as i64 },
+                doc! { "$set": { "clan": tag } },
+            )
+            .await;
+    }
+
+    fn clan_from_doc(d: &Document, xp: u64) -> ClanInfo {
+        ClanInfo {
+            tag: d.get_str("_id").unwrap_or("?").into(),
+            name: d.get_str("name").unwrap_or("?").into(),
+            owner: d.get_str("owner").unwrap_or("?").into(),
+            members: d.get_array("members").map(|a| a.len() as u32).unwrap_or(0),
+            xp,
+        }
+    }
+
+    async fn clan_of(&self, player_id: u32) -> Option<ClanInfo> {
+        let d = self
+            .players
+            .find_one(doc! { "_id": player_id as i64 })
+            .await
+            .ok()??;
+        let tag = d.get_str("clan").ok()?;
+        let c = self.clans.find_one(doc! { "_id": tag }).await.ok()??;
+        // суммарный XP: агрегируем по members
+        let members = c.get_array("members").ok()?;
+        let mut xp = 0u64;
+        for m in members {
+            if let Some(pid) = m.as_i64() {
+                if let Some(pd) = self
+                    .players
+                    .find_one(doc! { "_id": pid })
+                    .await
+                    .ok()
+                    .flatten()
+                {
+                    xp += get_u32(&pd, "xp").unwrap_or(0) as u64;
+                }
+            }
+        }
+        Some(Self::clan_from_doc(&c, xp))
+    }
+
+    async fn clan_top(&self, limit: usize) -> Vec<ClanInfo> {
+        let mut out = vec![];
+        let Ok(mut cur) = self.clans.find(mongodb::bson::Document::new()).await else {
+            return out;
+        };
+        let mut raw = vec![];
+        while let Some(Ok(d)) = cur.next().await {
+            raw.push(d);
+        }
+        // XP по кланам: один проход по игрокам
+        let mut xp_by_tag: std::collections::HashMap<String, u64> =
+            std::collections::HashMap::new();
+        let Ok(mut pc) = self.players.find(mongodb::bson::Document::new()).await else {
+            return out;
+        };
+        while let Some(Ok(pd)) = pc.next().await {
+            if let Ok(tag) = pd.get_str("clan") {
+                *xp_by_tag.entry(tag.into()).or_insert(0) += get_u32(&pd, "xp").unwrap_or(0) as u64;
+            }
+        }
+        for c in raw {
+            let tag = c.get_str("_id").unwrap_or("?").to_string();
+            let xp = xp_by_tag.get(&tag).copied().unwrap_or(0);
+            out.push(Self::clan_from_doc(&c, xp));
+        }
+        out.sort_by_key(|c| std::cmp::Reverse(c.xp));
+        out.truncate(limit);
+        out
     }
 
     async fn buy_skin(&self, player_id: u32, skin: u8, price: u32) -> Result<bool, String> {

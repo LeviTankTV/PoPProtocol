@@ -93,6 +93,17 @@ pub enum ClientMsg {
     ClaimQuest {
         index: u8,
     },
+    /// Создать клан (создатель автоматически становится участником).
+    ClanCreate {
+        tag: String,
+        name: String,
+    },
+    /// Вступить в клан по тегу.
+    ClanJoin {
+        tag: String,
+    },
+    /// Покинуть клан.
+    ClanLeave,
 }
 
 /* ---------- сервер -> клиент ---------- */

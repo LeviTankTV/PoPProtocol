@@ -386,6 +386,57 @@ async fn dispatch(
                 })
                 .map_err(choked)?;
         }
+        ClientMsg::ClanCreate { tag, name } => {
+            let tag = tag.trim().to_uppercase();
+            if tag.len() < 2 || tag.len() > 4 || !tag.chars().all(|c| c.is_ascii_alphanumeric()) {
+                return Err((
+                    ErrCode::BadName,
+                    "тег клана: 2-4 латинских букв/цифр".into(),
+                ));
+            }
+            let name = name.trim().to_string();
+            if name.is_empty() || name.chars().count() > 20 {
+                return Err((ErrCode::BadName, "название клана: 1-20 символов".into()));
+            }
+            state
+                .lobby
+                .clan_create(record.player_id, &record.name, &tag, &name)
+                .await
+                .map_err(|e| (ErrCode::InvalidInput, e))?;
+            direct_tx
+                .send(ServerMsg::Error {
+                    code: ErrCode::InvalidInput,
+                    text: format!("🏆 Клан [{tag}] {name} создан!"),
+                })
+                .map_err(choked)?;
+        }
+        ClientMsg::ClanJoin { tag } => {
+            let tag = tag.trim().to_uppercase();
+            state
+                .lobby
+                .clan_join(record.player_id, &tag)
+                .await
+                .map_err(|e| (ErrCode::InvalidInput, e))?;
+            direct_tx
+                .send(ServerMsg::Error {
+                    code: ErrCode::InvalidInput,
+                    text: format!("🏆 Вы вступили в клан [{tag}]"),
+                })
+                .map_err(choked)?;
+        }
+        ClientMsg::ClanLeave => {
+            state
+                .lobby
+                .clan_leave(record.player_id)
+                .await
+                .map_err(|e| (ErrCode::InvalidInput, e))?;
+            direct_tx
+                .send(ServerMsg::Error {
+                    code: ErrCode::InvalidInput,
+                    text: "🏆 Вы покинули клан".into(),
+                })
+                .map_err(choked)?;
+        }
         ClientMsg::PublishMap { name, rows } => {
             let name = name.trim().to_string();
             if name.is_empty() || name.chars().count() > 24 {

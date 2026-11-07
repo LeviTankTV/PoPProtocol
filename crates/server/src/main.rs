@@ -69,6 +69,7 @@ async fn main() {
         .route("/api/maps", get(maps_rest))
         .route("/api/season", get(season_rest))
         .route("/api/profile", get(profile_rest))
+        .route("/api/clans", get(clans_rest))
         .route("/metrics", get(metrics_rest))
         .route("/ws", get(ws::upgrade))
         .with_state(state);
@@ -218,6 +219,16 @@ async fn metrics_rest(State(state): State<AppState>) -> Response {
         text,
     )
         .into_response()
+}
+
+/// Топ кланов.
+async fn clans_rest(State(state): State<AppState>) -> Response {
+    let clans = state.store.clan_top(10).await;
+    Json(serde_json::json!(clans
+        .iter()
+        .map(|c| serde_json::json!({ "tag": c.tag, "name": c.name, "owner": c.owner, "members": c.members, "xp": c.xp }))
+        .collect::<Vec<_>>()))
+    .into_response()
 }
 
 /// Глобальный топ по XP.

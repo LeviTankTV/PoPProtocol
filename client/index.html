@@ -148,6 +148,9 @@
   .quest-row{ display:flex; gap:8px; align-items:center; background:#fff; border:2px solid #cfc6e8; border-radius:12px; padding:5px 8px; font-size:.9rem; }
   .quest-bar{ flex:1; height:10px; background:#e6e0f8; border-radius:5px; overflow:hidden; }
   .quest-bar div{ height:100%; background:linear-gradient(90deg,#1dd1a1,#48dbfb); }
+  .card-clan{ background:linear-gradient(135deg,#eef0ff,#e3f4ff); }
+  .clan-row{ display:flex; gap:8px; align-items:center; background:#fff; border:2px solid #cfc6e8; border-radius:12px; padding:5px 8px; font-size:.9rem; }
+  .clan-row b:first-child{ color:#5f27cd; }
   @media (max-width: 720px) {
     h1 { font-size: 1.6rem; }
     .menu-row { flex-wrap: wrap; }
@@ -211,7 +214,21 @@
         </div>
         <div id="rooms"></div>
       </section>
-                  <section class="menu-card card-quests">
+                      <section class="menu-card card-clan">
+      <h3 data-i18n="clanTitle">🛡 Клан</h3>
+      <div id="clan-mine" class="maps-list"></div>
+      <div class="join-row" id="clan-create-row" style="display:none">
+        <input id="clan-tag" maxlength="4" placeholder="ТЕГ" style="width:64px; text-transform:uppercase">
+        <input id="clan-name" maxlength="20" placeholder="Название клана">
+        <button id="btn-clan-create" class="small primary" data-i18n="clanCreate">Создать</button>
+      </div>
+      <div class="join-row" id="clan-join-row" style="display:none">
+        <input id="clan-join-tag" maxlength="4" placeholder="ТЕГ" style="width:64px; text-transform:uppercase">
+        <button id="btn-clan-join" class="small primary" data-i18n="clanJoin">Вступить</button>
+      </div>
+      <div id="clan-top" class="maps-list"></div>
+    </section>
+<section class="menu-card card-quests">
       <h3 data-i18n="qTitle">📋 Квесты дня</h3>
       <div id="quests-list" class="maps-list"></div>
     </section>
