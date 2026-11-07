@@ -1506,10 +1506,14 @@ pub fn spawn(
     speed_factor: f32,
     events_enabled: bool,
     mode: GameMode,
+    custom_rows: Option<Vec<String>>,
 ) -> mpsc::UnboundedSender<GameCmd> {
     let (tx, mut rx) = mpsc::unbounded_channel::<GameCmd>();
     tokio::spawn(async move {
         let mut game = Game::new(players, speed_factor, events_enabled, mode);
+        if let Some(rows) = &custom_rows {
+            game.field.load_rows(rows);
+        }
         let mut interval =
             tokio::time::interval(std::time::Duration::from_millis(1000 / TICK_HZ as u64));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);

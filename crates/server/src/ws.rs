@@ -363,6 +363,37 @@ async fn dispatch(
                 .await
                 .map_err(lobby)?
         }
+        ClientMsg::PublishMap { name, rows } => {
+            let name = name.trim().to_string();
+            if name.is_empty() || name.chars().count() > 24 {
+                return Err((ErrCode::BadName, "имя карты: 1-24 символов".into()).into());
+            }
+            let mut clean: Vec<String> = rows
+                .into_iter()
+                .take(8)
+                .map(|r| {
+                    let mut r: String = r
+                        .chars()
+                        .take(10)
+                        .filter(|c| matches!(c, '1'..='3' | 'x' | '.' | 'e' | 't' | 'g' | 'm'))
+                        .collect();
+                    while r.chars().count() < 10 {
+                        r.push('.');
+                    }
+                    r
+                })
+                .filter(|r| r.chars().any(|c| c != '.'))
+                .collect();
+            if clean.is_empty() {
+                clean.push("..........".into());
+            }
+            state
+                .lobby
+                .publish_map(&record.name, &name, clean)
+                .await
+                .map_err(lobby)?;
+        }
+        ClientMsg::RequestMaps => {} // список карт клиент берёт по HTTP /api/maps
         ClientMsg::UseUltimate => {
             if let Some(rid) = room_id {
                 state

@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use popproto_core::{
-    BotLevel, ErrCode, GameMode, PlayerInfo, RoomPhase, RoomSettings, RoomState, RoomSummary,
-    ServerMsg, BOT_ID_BASE, MAX_PLAYERS, MAX_SPECTATORS, RECONNECT_WINDOW_SECS,
+    BotLevel, ErrCode, GameMode, MapInfo, PlayerInfo, RoomPhase, RoomSettings, RoomState,
+    RoomSummary, ServerMsg, BOT_ID_BASE, MAX_PLAYERS, MAX_SPECTATORS, RECONNECT_WINDOW_SECS,
 };
 use tokio::sync::{broadcast, mpsc, Mutex};
 
@@ -503,6 +503,26 @@ impl Lobby {
         Ok(Joined { room_id, kind })
     }
 
+    /// Публикация карты из редактора с валидацией.
+    pub async fn publish_map(
+        &self,
+        author: &str,
+        name: &str,
+        rows: Vec<String>,
+    ) -> Result<(), LobbyError> {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > 24 {
+            return Err(ErrCode::BadName.into());
+        }
+        self.store.publish_map(name, author, rows).await;
+        Ok(())
+    }
+
+    /// Список последних карт для HTTP /api/maps.
+    pub async fn maps_list(&self, limit: usize) -> Vec<MapInfo> {
+        self.store.list_maps(limit).await
+    }
+
     /// Выбор ульты в лобби: 0 нет, 1 лед, 2 метеорит, 3 магнит.
     pub async fn set_ult(&self, player_id: u32, room_id: u32, ult: u8) -> Result<(), LobbyError> {
         if ult > 3 {
@@ -646,7 +666,15 @@ impl Lobby {
         let speed = room.settings.speed_factor;
         let events_on = room.settings.events_enabled;
         let mode = room.mode;
-        let cmd_tx = game::spawn(self.clone(), room_id, players, speed, events_on, mode);
+        let cmd_tx = game::spawn(
+            self.clone(),
+            room_id,
+            players,
+            speed,
+            events_on,
+            mode,
+            room.settings.custom_rows.clone(),
+        );
         inner.games.insert(room_id, cmd_tx);
         Ok(())
     }

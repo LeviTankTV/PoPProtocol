@@ -291,6 +291,44 @@ impl Field {
         }
     }
 
+    /// Загрузить поле из строк редактора: '1'-'3', 'x', 'e', 't', 'g', 'm', '.'.
+    pub fn load_rows(&mut self, rows: &[String]) {
+        self.bricks.clear();
+        self.grid.clear();
+        self.grid = vec![None; rows.len() * COLS];
+        for (r, row) in rows.iter().enumerate() {
+            for (c, ch) in row.chars().enumerate() {
+                if c >= COLS {
+                    break;
+                }
+                if ch == '.' {
+                    continue;
+                }
+                let (kind, hp) = match ch {
+                    'x' => (BK_NORMAL, 255u8),
+                    'e' => (BK_EXPLOSIVE, 1),
+                    't' => (BK_TELEPORT, 2),
+                    'g' => (BK_REGEN, 2),
+                    'm' => (BK_MOVING, 2),
+                    d => (BK_NORMAL, d.to_digit(10).unwrap_or(1) as u8),
+                };
+                let id = self.next_brick_id;
+                self.next_brick_id += 1;
+                let brick = Brick {
+                    id,
+                    c: c as u8,
+                    r: r as u8,
+                    hp,
+                    stone: ch == 'x',
+                    kind,
+                    hp_max: hp,
+                };
+                self.grid[r * COLS + c] = Some(id);
+                self.bricks.push(brick);
+            }
+        }
+    }
+
     pub fn add_paddle(&mut self, x: f32) {
         self.paddles.push(Paddle {
             x: x.clamp(PADDLE_BASE_W / 2.0, self.w - PADDLE_BASE_W / 2.0),

@@ -11,6 +11,7 @@ use futures_util::StreamExt;
 use mongodb::bson::{doc, Document};
 use mongodb::options::IndexOptions;
 use mongodb::{Client, IndexModel};
+use popproto_core::MapInfo;
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -79,6 +80,31 @@ impl Store {
         }
     }
 
+    /// Опубликовать карту редактора; возвращает id.
+    pub async fn publish_map(&self, name: &str, author: &str, rows: Vec<String>) -> Option<u32> {
+        let id: u32 = (uuid::Uuid::new_v4().as_u128() & 0xFFFF_FFFF) as u32;
+        match self {
+            Store::Memory(m) => m.publish_map(id, name, author, rows).await,
+            Store::Mongo(m) => m.publish_map(id, name, author, rows).await,
+        }
+    }
+
+    /// Список последних карт.
+    pub async fn list_maps(&self, limit: usize) -> Vec<MapInfo> {
+        match self {
+            Store::Memory(m) => m.list_maps(limit).await,
+            Store::Mongo(m) => m.list_maps(limit).await,
+        }
+    }
+
+    /// Отметка сыгранной партии на карте.
+    pub async fn map_plays_inc(&self, map_id: u32) {
+        match self {
+            Store::Memory(m) => m.map_plays_inc(map_id).await,
+            Store::Mongo(m) => m.map_plays_inc(map_id).await,
+        }
+    }
+
     /// Найти или создать игрока по нику и токену.
     pub async fn resolve_player(
         &self,
@@ -130,10 +156,42 @@ struct MemoryInner {
     tokens: HashMap<String, u32>,
     /// Уникальность ников без токена.
     names: HashMap<String, u32>,
+    /// Карты редактора.
+    maps: Vec<MapInfo>,
     next_id: u32,
 }
 
 impl MemoryStore {
+    async fn publish_map(
+        &self,
+        id: u32,
+        name: &str,
+        author: &str,
+        rows: Vec<String>,
+    ) -> Option<u32> {
+        let mut inner = self.inner.lock().await;
+        inner.maps.push(MapInfo {
+            id,
+            name: name.into(),
+            author: author.into(),
+            rows,
+            plays: 0,
+        });
+        Some(id)
+    }
+
+    async fn list_maps(&self, limit: usize) -> Vec<MapInfo> {
+        let inner = self.inner.lock().await;
+        inner.maps.iter().rev().take(limit).cloned().collect()
+    }
+
+    async fn map_plays_inc(&self, map_id: u32) {
+        let mut inner = self.inner.lock().await;
+        if let Some(m) = inner.maps.iter_mut().find(|m| m.id == map_id) {
+            m.plays += 1;
+        }
+    }
+
     async fn add_xp(&self, player_id: u32, delta: u32) {
         let mut inner = self.inner.lock().await;
         if let Some(rec) = inner.players.get_mut(&player_id) {
@@ -217,6 +275,7 @@ impl MemoryStore {
 pub struct MongoStore {
     players: mongodb::Collection<Document>,
     sessions: mongodb::Collection<Document>,
+    maps: mongodb::Collection<Document>,
 }
 
 impl MongoStore {
@@ -230,6 +289,7 @@ impl MongoStore {
         let db = client.database(db_name);
         let players = db.collection("players");
         let sessions = db.collection("sessions");
+        let maps = db.collection("maps");
 
         let name_opts = IndexOptions::builder().unique(true).build();
         players
@@ -244,7 +304,70 @@ impl MongoStore {
             .create_index(IndexModel::builder().keys(doc! { "token": 1 }).build())
             .await?;
 
-        Ok(Self { players, sessions })
+        Ok(Self {
+            players,
+            sessions,
+            maps,
+        })
+    }
+
+    async fn publish_map(
+        &self,
+        id: u32,
+        name: &str,
+        author: &str,
+        rows: Vec<String>,
+    ) -> Option<u32> {
+        let doc = doc! {
+            "_id": id as i64,
+            "name": name,
+            "author": author,
+            "rows": rows,
+            "plays": 0i32,
+            "created": SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64).unwrap_or(0),
+        };
+        self.maps.insert_one(doc).await.ok()?;
+        Some(id)
+    }
+
+    async fn list_maps(&self, limit: usize) -> Vec<MapInfo> {
+        let mut out = vec![];
+        let filter = mongodb::bson::Document::new();
+        let opts = mongodb::options::FindOptions::builder()
+            .sort(doc! { "created": -1 })
+            .limit(limit as i64)
+            .build();
+        let mut cur = match self.maps.find(filter).with_options(opts).await {
+            Ok(c) => c,
+            Err(_) => return out,
+        };
+        while let Some(Ok(d)) = cur.next().await {
+            let empty = Vec::new();
+            let rows: Vec<String> = d
+                .get_array("rows")
+                .unwrap_or(&empty)
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            out.push(MapInfo {
+                id: d.get_i64("_id").unwrap_or_default() as u32,
+                name: d.get_str("name").unwrap_or("?").into(),
+                author: d.get_str("author").unwrap_or("?").into(),
+                rows,
+                plays: d.get_i32("plays").unwrap_or_default() as u32,
+            });
+        }
+        out
+    }
+
+    async fn map_plays_inc(&self, map_id: u32) {
+        let _ = self
+            .maps
+            .update_one(
+                doc! { "_id": map_id as i64 },
+                doc! { "$inc": { "plays": 1 } },
+            )
+            .await;
     }
 
     async fn random_player_id(&self) -> Result<u32, StoreError> {

@@ -40,6 +40,12 @@ function mCreateRoom(name, password, mode, settings) {
   if (password) w.u8(1).str(password); else w.u8(0);
   w.u32(mode);
   w.u8(settings.max_players).u8(settings.events_enabled ? 1 : 0).u8(settings.bosses_enabled ? 1 : 0).f32(settings.speed_factor);
+  if (settings.custom_rows && settings.custom_rows.length) {
+    w.u8(1).u64(settings.custom_rows.length);
+    settings.custom_rows.forEach((r) => w.str(r));
+  } else {
+    w.u8(0);
+  }
   return w.bytes();
 }
 function mJoinRoom(code, password) {
@@ -59,6 +65,7 @@ const mPing = (n) => new W().u32(12).u64(n).bytes();
 const mAddBot = (level) => new W().u32(13).u32(level).bytes();
 const mRemoveBot = (id) => new W().u32(14).u32(id).bytes();
 const mSetColor = (color) => new W().u32(15).u8(color).bytes();
+const mPublishMap = (name, rows) => { const w = new W().u32(18).str(name).u64(rows.length); rows.forEach((rr) => w.str(rr)); return w.bytes(); };
 const mSetUlt = (ult) => new W().u32(16).u8(ult).bytes();
 const mUseUlt = () => new W().u32(17).bytes();
 
@@ -99,6 +106,12 @@ function readPlayerInfo(r) {
 function readRoomState(r) {
   const room_id = r.u32(), code = r.str(), name = r.str(), mode = r.u32();
   const settings = { max_players: r.u8(), events_enabled: !!r.u8(), bosses_enabled: !!r.u8(), speed_factor: r.f32() };
+  settings.custom_rows = null;
+  if (r.u8() === 1) {
+    const nRows = r.u64();
+    settings.custom_rows = [];
+    for (let k = 0; k < nRows; k++) settings.custom_rows.push(r.str());
+  }
   const host_id = r.u32(), phase = r.u32();
   const players = r.vec(() => readPlayerInfo(r));
   const spectators = r.vec(() => readPlayerInfo(r));
@@ -124,4 +137,4 @@ function readSnapshot(r) {
   return { t: "Snapshot", tick, field_w, field_h, phase, level, players, balls, bricks_upsert, bricks_removed, capsules, bullets, events, boss, combo, scores, fx, projs };
 }
 
-window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, mSetUlt, mUseUlt, decode };
+window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, mSetUlt, mUseUlt, mPublishMap, decode };

@@ -74,6 +74,13 @@ pub enum ClientMsg {
     },
     /// Активировать ульту в бою (нужен заряд от комбо).
     UseUltimate,
+    /// Опубликовать карту из редактора.
+    PublishMap {
+        name: String,
+        rows: Vec<String>,
+    },
+    /// Запросить список опубликованных карт.
+    RequestMaps,
 }
 
 /* ---------- сервер -> клиент ---------- */
@@ -151,6 +158,8 @@ pub struct RoomSettings {
     pub bosses_enabled: bool,
     /// Множитель базовой скорости мячей, 0.5..2.0.
     pub speed_factor: f32,
+    /// Своя карта из редактора: строки символов 10 колонок, 1..=8 строк.
+    pub custom_rows: Option<Vec<String>>,
 }
 
 impl Default for RoomSettings {
@@ -160,6 +169,7 @@ impl Default for RoomSettings {
             events_enabled: true,
             bosses_enabled: true,
             speed_factor: 1.0,
+            custom_rows: None,
         }
     }
 }
@@ -394,6 +404,16 @@ pub struct BossSnap {
     pub y: u16,
     /// Живые щиты-щупальца: HP и угол (мячи отскакивают от них, не нанося урона).
     pub shields: Vec<ShieldSnap>,
+}
+
+/// Карта из редактора уровней.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MapInfo {
+    pub id: u32,
+    pub name: String,
+    pub author: String,
+    pub rows: Vec<String>,
+    pub plays: u32,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]

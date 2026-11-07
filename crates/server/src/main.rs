@@ -64,6 +64,7 @@ async fn main() {
         .route("/stats", get(stats))
         .route("/api/rooms", get(rooms_rest))
         .route("/api/leaderboard", get(leaderboard_rest))
+        .route("/api/maps", get(maps_rest))
         .route("/ws", get(ws::upgrade))
         .with_state(state);
 
@@ -112,6 +113,19 @@ async fn stats(State(state): State<AppState>) -> Response {
 /// Снимок списка комнат для веб-клиента (тот же список, что по WS).
 async fn rooms_rest(State(state): State<AppState>) -> Response {
     Json(state.lobby.room_list().await).into_response()
+}
+
+/// Опубликованные карты редактора.
+async fn maps_rest(State(state): State<AppState>) -> Response {
+    let maps = state.lobby.maps_list(30).await;
+    Json(serde_json::json!(maps
+        .iter()
+        .map(|m| serde_json::json!({
+            "id": m.id, "name": m.name, "author": m.author,
+            "rows": m.rows, "plays": m.plays,
+        }))
+        .collect::<Vec<_>>()))
+    .into_response()
 }
 
 /// Глобальный топ по XP.

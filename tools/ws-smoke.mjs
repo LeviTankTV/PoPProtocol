@@ -41,6 +41,7 @@ function readPI(r) {
 function readRoomState(r) {
   const room_id = r.u32(), code = r.str(), name = r.str(), mode = r.u32();
   r.u8(); r.u8(); r.u8(); r.f32(); // settings
+  if (r.u8() === 1) { const nMR = r.u64(); for (let mI = 0; mI < nMR; mI++) r.str(); }
   const host_id = r.u32(), phase = r.u32();
   const players = r.vec(() => readPI(r));
   const spectators = r.vec(() => readPI(r));

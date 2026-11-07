@@ -10,7 +10,7 @@ const I18N = {
     connecting: "подключение…", online: "сервер онлайн", offline: "сервер недоступен, переподключение…",
     roomName: "название комнаты", roomPass: "пароль (необязательно)", create: "Создать",
     joinCode: "код комнаты", joinPass: "пароль", joinByCode: "Войти по коду", refresh: "↻ обновить",
-    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд",
+    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд", edOpen: "Открыть редактор", edName: "Название карты", edRows: "Строк:", edClear: "Очистить", edTest: "▶ Тест", edPublish: "🌍 Опубликовать", edClose: "← Меню", mapsEmpty: "карт пока нет — создай первую!", playMap: "Играть",
     bots: "Боты:", botLazy: "+ Лентяй", botNormal: "+ Обычный", botPro: "+ Профи",
     hint: "мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции",
     noRooms: "Пока нет комнат — создайте первую!", enter: "Войти", inProgress: "▶ идёт матч", lobbySt: "лобби",
@@ -24,7 +24,7 @@ const I18N = {
     connecting: "connecting…", online: "server online", offline: "server unreachable, reconnecting…",
     roomName: "room name", roomPass: "password (optional)", create: "Create",
     joinCode: "room code", joinPass: "password", joinByCode: "Join by code", refresh: "↻ refresh",
-    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges",
+    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges", edOpen: "Open editor", edName: "Map name", edRows: "Rows:", edClear: "Clear", edTest: "▶ Test", edPublish: "🌍 Publish", edClose: "← Menu", mapsEmpty: "no maps yet — build the first one!", playMap: "Play",
     bots: "Bots:", botLazy: "+ Lazy", botNormal: "+ Normal", botPro: "+ Pro",
     hint: "mouse — paddle · click/space — launch · 1–8 — emotes",
     noRooms: "No rooms yet — create the first one!", enter: "Join", inProgress: "▶ playing", lobbySt: "lobby",
@@ -98,6 +98,7 @@ const S = {
   paddleX: null,                 // предсказанная позиция СВОЕЙ ракетки (без задержки)
   overUntil: 0, overPending: false, // анимационная пауза после матча
   prevShieldHps: [],                // HP щитов с прошлого снапшота (вспышки урона)
+  editor: null,                     // { rows: string[], tool: string }
   bgDirty: true, bricksDirty: true, bgBoss: false, // кэши статики
 };
 
@@ -274,10 +275,11 @@ function onSnapshot(s) {
 
 /* ---------- экраны ---------- */
 function showScreen(name) {
-  for (const s of ["menu", "room", "game"]) document.getElementById("screen-" + s).style.display = s === name ? "block" : "none";
+  for (const s of ["menu", "room", "game", "editor"]) document.getElementById("screen-" + s).style.display = s === name ? "block" : "none";
   document.getElementById("over").style.display = "none";
-  if (name === "menu") { leaderboardShown = false; send(P.mRoomList()); if (window.__loadTop) window.__loadTop(); }
+  if (name === "menu") { leaderboardShown = false; send(P.mRoomList()); if (window.__loadTop) window.__loadTop(); if (window.__loadMaps) window.__loadMaps(); }
   if (name === "room") renderRoom();
+  if (name === "editor" && window.__renderEditor) window.__renderEditor();
   if (name === "game") {
     // поле всегда в зоне видимости: матч начался или реконнект — не заставляем листать
     const holder = document.getElementById("canvas-holder");
@@ -1194,6 +1196,93 @@ window.addEventListener("DOMContentLoaded", async () => {
     send(P.mCreateRoom(name, pass || null, mode, { max_players: 10, events_enabled: true, bosses_enabled: true, speed_factor: 1.0 }));
   };
   document.getElementById("btn-refresh").onclick = () => send(P.mRoomList());
+
+  /* ---------- редактор уровней ---------- */
+  const ED_TOOLS = [
+    { ch: ".", label: "⬜" },
+    { ch: "1", label: "1" },
+    { ch: "2", label: "2" },
+    { ch: "3", label: "3" },
+    { ch: "x", label: "🪨" },
+    { ch: "e", label: "💥" },
+    { ch: "t", label: "🌀" },
+    { ch: "g", label: "♻️" },
+    { ch: "m", label: "⇄" },
+  ];
+  const edDefaultRows = (n) => Array.from({ length: n }, (_, r) => "1".repeat(10 - Math.min(3, r)) + ".".repeat(Math.min(3, r)));
+  if (!S.editor) S.editor = { rows: edDefaultRows(5), tool: "1" };
+
+  function renderEditor() {
+    const pal = document.getElementById("ed-palette");
+    pal.innerHTML = "";
+    ED_TOOLS.forEach((tl) => {
+      const b = document.createElement("button");
+      b.className = "ed-tool" + (S.editor.tool === tl.ch ? " active" : "");
+      b.textContent = tl.label;
+      b.onclick = () => { S.editor.tool = tl.ch; renderEditor(); };
+      pal.appendChild(b);
+    });
+    document.getElementById("ed-rows-n").textContent = S.editor.rows.length;
+    const grid = document.getElementById("ed-grid");
+    grid.innerHTML = "";
+    const cmap = { "1": "#ffd9e0", "2": "#ffe9c9", "3": "#d6f5e3", "x": "#cfd8dc", "e": "#ffccb0", "t": "#e8d5ff", "g": "#c9f0d8", "m": "#cdefff" };
+    S.editor.rows.forEach((row, r) => {
+      for (let c = 0; c < 10; c++) {
+        const cell = document.createElement("button");
+        const ch = row[c] || ".";
+        cell.className = "ed-cell";
+        cell.textContent = ch === "." ? "" : (ED_TOOLS.find((t) => t.ch === ch) || {}).label || ch;
+        if (ch !== ".") cell.style.background = cmap[ch] || "#fff";
+        cell.onclick = () => {
+          const row2 = S.editor.rows[r].split("");
+          row2[c] = S.editor.tool;
+          S.editor.rows[r] = row2.join("");
+          renderEditor();
+        };
+        grid.appendChild(cell);
+      }
+    });
+  }
+
+  const createWithRows = (rows, nm) => {
+    const name = (nm || document.getElementById("ed-name").value.trim() || "Моя карта").slice(0, 24);
+    send(P.mCreateRoom(name, null, 0, { max_players: 10, events_enabled: true, bosses_enabled: true, speed_factor: 1.0, custom_rows: rows }));
+  };
+
+  document.getElementById("btn-editor").onclick = () => showScreen("editor");
+  document.getElementById("ed-close").onclick = () => showScreen("menu");
+  document.getElementById("ed-clear").onclick = () => { S.editor.rows = Array.from({ length: S.editor.rows.length }, () => ".........."); renderEditor(); };
+  document.getElementById("ed-rows-minus").onclick = () => { if (S.editor.rows.length > 1) { S.editor.rows.pop(); renderEditor(); } };
+  document.getElementById("ed-rows-plus").onclick = () => { if (S.editor.rows.length < 8) { S.editor.rows.push(".........."); renderEditor(); } };
+  document.getElementById("ed-test").onclick = () => createWithRows(S.editor.rows);
+  document.getElementById("ed-publish").onclick = () => {
+    const name = document.getElementById("ed-name").value.trim();
+    send(P.mPublishMap(name || "Карта", S.editor.rows));
+    setTimeout(() => window.__loadMaps && window.__loadMaps(), 600);
+  };
+
+  async function loadMaps() {
+    const box = document.getElementById("maps-list");
+    if (!box) return;
+    try {
+      const maps = await fetch("/api/maps").then((r) => r.json());
+      box.innerHTML = "";
+      if (!maps.length) { box.innerHTML = `<span style="font-size:.9rem;color:#3b3552">${t("mapsEmpty")}</span>`; return; }
+      maps.forEach((m) => {
+        const row = document.createElement("div");
+        row.className = "map-row";
+        row.innerHTML = `<b>${escapeHtml(m.name)}</b><span style="color:#3b3552">👤 ${escapeHtml(m.author)} · ▶ ${m.plays}</span>`;
+        const btn = document.createElement("button");
+        btn.className = "small";
+        btn.textContent = t("playMap");
+        btn.onclick = () => createWithRows(m.rows, m.name);
+        row.appendChild(btn);
+        box.appendChild(row);
+      });
+    } catch (e) { box.innerHTML = ""; }
+  }
+  window.__loadMaps = loadMaps;
+  window.__renderEditor = renderEditor;
   const loadTop = async () => {
     const box = document.getElementById("top-list");
     try {
