@@ -1374,6 +1374,7 @@ dependencies = [
  "popproto-bot",
  "popproto-core",
  "rust-embed",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",

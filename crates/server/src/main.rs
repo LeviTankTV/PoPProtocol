@@ -65,6 +65,8 @@ async fn main() {
         .route("/api/rooms", get(rooms_rest))
         .route("/api/leaderboard", get(leaderboard_rest))
         .route("/api/maps", get(maps_rest))
+        .route("/api/season", get(season_rest))
+        .route("/api/profile", get(profile_rest))
         .route("/ws", get(ws::upgrade))
         .with_state(state);
 
@@ -126,6 +128,31 @@ async fn maps_rest(State(state): State<AppState>) -> Response {
         }))
         .collect::<Vec<_>>()))
     .into_response()
+}
+
+/// Текущий сезон + топ по ELO.
+async fn season_rest(State(state): State<AppState>) -> Response {
+    let season = crate::lobby::season_now_pub();
+    let top = state.store.elo_top(10).await;
+    Json(serde_json::json!({
+        "season": season,
+        "top": top.iter().map(|e| serde_json::json!({ "name": e.name, "elo": e.elo })).collect::<Vec<_>>(),
+    }))
+    .into_response()
+}
+
+/// Профиль игрока: ?name=Ник.
+async fn profile_rest(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let Some(name) = q.get("name") else {
+        return (axum::http::StatusCode::BAD_REQUEST, "name required").into_response();
+    };
+    match state.store.profile_by_name(name).await {
+        Some(p) => Json(p).into_response(),
+        None => (axum::http::StatusCode::NOT_FOUND, "no such player").into_response(),
+    }
 }
 
 /// Глобальный топ по XP.

@@ -20,6 +20,8 @@ pub struct PlayerRecord {
     pub name: String,
     pub token: String,
     pub xp: u32,
+    /// Рейтинг ELO (старт 1000), сезон = календарный месяц.
+    pub elo: i32,
 }
 
 #[derive(Debug, PartialEq)]
@@ -36,6 +38,14 @@ fn get_u32(doc: &Document, key: &str) -> Option<u32> {
     match doc.get(key)? {
         mongodb::bson::Bson::Int32(v) => Some(*v as u32),
         mongodb::bson::Bson::Int64(v) => Some(*v as u32),
+        _ => None,
+    }
+}
+
+fn get_i32(doc: &Document, key: &str) -> Option<i32> {
+    match doc.get(key)? {
+        mongodb::bson::Bson::Int32(v) => Some(*v),
+        mongodb::bson::Bson::Int64(v) => Some(*v as i32),
         _ => None,
     }
 }
@@ -129,6 +139,64 @@ impl Store {
         }
     }
 
+    /// Результат матча: обновить ELO и записать в историю.
+    pub async fn match_result(
+        &self,
+        player_id: u32,
+        place: u32,
+        total: u32,
+        score: u32,
+        elo_delta: i32,
+        season: &str,
+    ) {
+        if player_id >= popproto_core::BOT_ID_BASE {
+            return;
+        }
+        match self {
+            Store::Memory(s) => {
+                s.match_result(player_id, place, total, score, elo_delta, season)
+                    .await
+            }
+            Store::Mongo(s) => {
+                s.match_result(player_id, place, total, score, elo_delta, season)
+                    .await
+            }
+        }
+    }
+
+    /// Топ сезона по ELO.
+    pub async fn elo_top(&self, limit: usize) -> Vec<LeaderEntry> {
+        match self {
+            Store::Memory(s) => s.elo_top(limit).await,
+            Store::Mongo(s) => s.elo_top(limit).await,
+        }
+    }
+
+    /// Профиль игрока по id.
+    pub async fn profile(&self, player_id: u32) -> Option<Profile> {
+        match self {
+            Store::Memory(s) => s.profile(player_id).await,
+            Store::Mongo(s) => s.profile(player_id).await,
+        }
+    }
+
+    /// Профиль по нику (для HTTP /api/profile?name=).
+    pub async fn profile_by_name(&self, name: &str) -> Option<Profile> {
+        let player_id = self.resolve_id_by_name(name).await?;
+        self.profile(player_id).await
+    }
+
+    /// id игрока по нику.
+    async fn resolve_id_by_name(&self, name: &str) -> Option<u32> {
+        match self {
+            Store::Memory(m) => {
+                let inner = m.inner.lock().await;
+                inner.names.get(name).copied()
+            }
+            Store::Mongo(m) => m.player_id_by_name(name).await,
+        }
+    }
+
     /// Глобальный топ по XP (спецификация §9).
     pub async fn leaderboard(&self, limit: usize) -> Vec<LeaderEntry> {
         match self {
@@ -142,6 +210,26 @@ impl Store {
 pub struct LeaderEntry {
     pub name: String,
     pub xp: u32,
+    pub elo: i32,
+}
+
+/// Профиль игрока для HTTP /api/profile.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Profile {
+    pub name: String,
+    pub xp: u32,
+    pub elo: i32,
+    pub matches: Vec<MatchRecord>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MatchRecord {
+    pub place: u32,
+    pub total: u32,
+    pub score: u32,
+    pub elo_delta: i32,
+    pub season: String,
+    pub ts: i64,
 }
 
 /* ---------- память: фолбэк и юнит-тесты ---------- */
@@ -159,6 +247,8 @@ struct MemoryInner {
     names: HashMap<String, u32>,
     /// Карты редактора.
     maps: Vec<MapInfo>,
+    /// История матчей по игрокам.
+    matches: Vec<(u32, MatchRecord)>,
     next_id: u32,
 }
 
@@ -200,6 +290,71 @@ impl MemoryStore {
         }
     }
 
+    async fn match_result(
+        &self,
+        player_id: u32,
+        place: u32,
+        total: u32,
+        score: u32,
+        elo_delta: i32,
+        season: &str,
+    ) {
+        let mut inner = self.inner.lock().await;
+        if let Some(rec) = inner.players.get_mut(&player_id) {
+            rec.elo += elo_delta;
+        }
+        inner.matches.push((
+            player_id,
+            MatchRecord {
+                place,
+                total,
+                score,
+                elo_delta,
+                season: season.into(),
+                ts: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .ok()
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0),
+            },
+        ));
+    }
+
+    async fn elo_top(&self, limit: usize) -> Vec<LeaderEntry> {
+        let inner = self.inner.lock().await;
+        let mut list: Vec<LeaderEntry> = inner
+            .players
+            .values()
+            .map(|r| LeaderEntry {
+                name: r.name.clone(),
+                xp: r.xp,
+                elo: r.elo,
+            })
+            .collect();
+        list.sort_by_key(|r| std::cmp::Reverse(r.elo));
+        list.truncate(limit);
+        list
+    }
+
+    async fn profile(&self, player_id: u32) -> Option<Profile> {
+        let inner = self.inner.lock().await;
+        let rec = inner.players.get(&player_id)?;
+        let mut matches: Vec<MatchRecord> = inner
+            .matches
+            .iter()
+            .filter(|(pid, _)| *pid == player_id)
+            .map(|(_, m)| m.clone())
+            .collect();
+        matches.sort_by_key(|m| std::cmp::Reverse(m.ts));
+        matches.truncate(20);
+        Some(Profile {
+            name: rec.name.clone(),
+            xp: rec.xp,
+            elo: rec.elo,
+            matches,
+        })
+    }
+
     async fn leaderboard(&self, limit: usize) -> Vec<LeaderEntry> {
         let inner = self.inner.lock().await;
         let mut list: Vec<LeaderEntry> = inner
@@ -208,6 +363,7 @@ impl MemoryStore {
             .map(|r| LeaderEntry {
                 name: r.name.clone(),
                 xp: r.xp,
+                elo: r.elo,
             })
             .collect();
         list.sort_by_key(|r| std::cmp::Reverse(r.xp));
@@ -262,6 +418,7 @@ impl MemoryStore {
             name: name.clone(),
             token: token.clone(),
             xp: 0,
+            elo: 1000,
         };
         inner.players.insert(player_id, rec.clone());
         inner.tokens.insert(token, player_id);
@@ -277,6 +434,7 @@ pub struct MongoStore {
     players: mongodb::Collection<Document>,
     sessions: mongodb::Collection<Document>,
     maps: mongodb::Collection<Document>,
+    matches: mongodb::Collection<Document>,
 }
 
 impl MongoStore {
@@ -291,6 +449,7 @@ impl MongoStore {
         let players = db.collection("players");
         let sessions = db.collection("sessions");
         let maps = db.collection("maps");
+        let matches = db.collection("matches");
 
         let name_opts = IndexOptions::builder().unique(true).build();
         players
@@ -309,7 +468,106 @@ impl MongoStore {
             players,
             sessions,
             maps,
+            matches,
         })
+    }
+
+    async fn match_result(
+        &self,
+        player_id: u32,
+        place: u32,
+        total: u32,
+        score: u32,
+        elo_delta: i32,
+        season: &str,
+    ) {
+        if let Err(e) = self
+            .players
+            .update_one(
+                doc! { "_id": player_id as i64 },
+                doc! { "$inc": { "elo": elo_delta as i64 } },
+            )
+            .await
+        {
+            tracing::warn!("elo update: {e}");
+        }
+        let _ = self
+            .matches
+            .insert_one(doc! {
+                "player_id": player_id as i64,
+                "place": place as i32,
+                "total": total as i32,
+                "score": score as i32,
+                "elo_delta": elo_delta as i32,
+                "season": season,
+                "ts": SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64).unwrap_or(0),
+            })
+            .await;
+    }
+
+    async fn elo_top(&self, limit: usize) -> Vec<LeaderEntry> {
+        let mut out = vec![];
+        let opts = mongodb::options::FindOptions::builder()
+            .sort(doc! { "elo": -1 })
+            .limit(limit as i64)
+            .build();
+        let Ok(mut cur) = self
+            .players
+            .find(mongodb::bson::Document::new())
+            .with_options(opts)
+            .await
+        else {
+            return out;
+        };
+        while let Some(Ok(d)) = cur.next().await {
+            out.push(LeaderEntry {
+                name: d.get_str("name").unwrap_or("?").into(),
+                xp: get_u32(&d, "xp").unwrap_or(0),
+                elo: get_i32(&d, "elo").unwrap_or(1000),
+            });
+        }
+        out
+    }
+
+    async fn profile(&self, player_id: u32) -> Option<Profile> {
+        let d = self
+            .players
+            .find_one(doc! { "_id": player_id as i64 })
+            .await
+            .ok()??;
+        let mut matches = vec![];
+        let opts = mongodb::options::FindOptions::builder()
+            .sort(doc! { "ts": -1 })
+            .limit(20)
+            .build();
+        if let Ok(mut cur) = self
+            .matches
+            .find(doc! { "player_id": player_id as i64 })
+            .with_options(opts)
+            .await
+        {
+            while let Some(Ok(m)) = cur.next().await {
+                matches.push(MatchRecord {
+                    place: get_u32(&m, "place").unwrap_or(0),
+                    total: get_u32(&m, "total").unwrap_or(0),
+                    score: get_u32(&m, "score").unwrap_or(0),
+                    elo_delta: get_i32(&m, "elo_delta").unwrap_or(0),
+                    season: m.get_str("season").unwrap_or("?").into(),
+                    ts: m.get_i64("ts").unwrap_or(0),
+                });
+            }
+        }
+        Some(Profile {
+            name: d.get_str("name").unwrap_or("?").into(),
+            xp: get_u32(&d, "xp").unwrap_or(0),
+            elo: get_i32(&d, "elo").unwrap_or(1000),
+            matches,
+        })
+    }
+
+    async fn player_id_by_name(&self, name: &str) -> Option<u32> {
+        let d = self.players.find_one(doc! { "name": name }).await.ok()??;
+        Some(get_u32(&d, "_id").unwrap_or(0))
     }
 
     async fn publish_map(
@@ -463,6 +721,7 @@ impl MongoStore {
                 name,
                 token: token.to_string(),
                 xp,
+                elo: get_i32(&player, "elo").unwrap_or(1000),
             });
         }
 
@@ -477,6 +736,7 @@ impl MongoStore {
             name,
             token,
             xp: 0,
+            elo: 1000,
         };
         self.insert_player(&rec).await?;
         Ok(rec)
@@ -511,6 +771,7 @@ impl MongoStore {
             .map(|d| LeaderEntry {
                 name: d.get_str("name").unwrap_or("?").to_string(),
                 xp: get_u32(d, "xp").unwrap_or(0),
+                elo: get_i32(d, "elo").unwrap_or(1000),
             })
             .collect()
     }
@@ -552,6 +813,31 @@ pub async fn connect_store() -> Store {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn match_result_updates_elo_and_history() {
+        let store = Store::Memory(MemoryStore::new());
+        let rec = store.resolve_player("Иванс", None).await.unwrap();
+        store
+            .match_result(rec.player_id, 1, 2, 500, 32, "2026-11")
+            .await;
+        store
+            .match_result(rec.player_id, 2, 2, 100, -32, "2026-11")
+            .await;
+        let prof = store.profile(rec.player_id).await.unwrap();
+        assert_eq!(prof.elo, 1000);
+        assert_eq!(prof.matches.len(), 2);
+        let top = store.elo_top(10).await;
+        assert_eq!(top.len(), 1);
+        assert_eq!(top[0].elo, 1000);
+    }
+
+    #[test]
+    fn season_format() {
+        let s = crate::lobby::season_now_pub();
+        assert_eq!(s.len(), 7);
+        assert_eq!(s.as_bytes()[4], b'-');
+    }
+
     use super::*;
 
     #[tokio::test]

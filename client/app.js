@@ -1292,6 +1292,23 @@ window.addEventListener("DOMContentLoaded", async () => {
         ? top.map((e, i) => `<div class="room-row"><b>${i + 1}. ${escapeHtml(e.name)}</b><span class="muted">${e.xp} XP · lvl ${Math.floor(e.xp / 100) + 1}</span></div>`).join("")
         : `<span class="muted">${t("topEmpty")}</span>`;
     } catch { box.innerHTML = "<span class='muted'>…</span>"; }
+    // сезон по ELO + мой профиль
+    try {
+      const season = await fetch("/api/season").then((r) => r.json());
+      document.getElementById("season-name").textContent = `${LANG === "en" ? "Season" : "Сезон"} ${season.season} · ELO`;
+      const st = document.getElementById("season-top");
+      st.innerHTML = season.top.length
+        ? season.top.map((e, i) => `<div class="room-row"><b>${i + 1}. ${escapeHtml(e.name)}</b><span class="muted">⚡ ${e.elo}</span></div>`).join("")
+        : `<span class="muted">${t("topEmpty")}</span>`;
+    } catch {}
+    try {
+      const me = S.myName || localStorage.getItem("pop_name") || "";
+      const prof = await fetch(`/api/profile?name=${encodeURIComponent(me)}`).then((r) => r.json());
+      const pb = document.getElementById("profile-box");
+      const wins = prof.matches.filter((m) => m.place === 1).length;
+      pb.innerHTML = `<div class="room-row"><b>👤 ${escapeHtml(prof.name)}</b><span class="muted">${prof.xp} XP · ⚡ ${prof.elo} · ${LANG === "en" ? "wins" : "побед"}: ${wins}/${prof.matches.length}</span></div>` +
+        prof.matches.slice(0, 5).map((m) => `<div class="room-row"><span>${m.place === 1 ? "🥇" : m.place === 2 ? "🥈" : m.place === 3 ? "🥉" : "—"}</span><span class="muted">${m.score} ${LANG === "en" ? "pts" : "очк."} · ${m.elo_delta >= 0 ? "+" : ""}${m.elo_delta} ELO · ${m.season}</span></div>`).join("");
+    } catch {}
   };
   document.getElementById("btn-leaderboard").onclick = loadTop;
   window.__loadTop = loadTop;
