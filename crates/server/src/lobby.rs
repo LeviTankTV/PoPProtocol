@@ -398,6 +398,7 @@ impl Lobby {
                     p.xp += score / 10;
                 }
             }
+            MATCHES_TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             tracing::info!("комната #{room_id}: матч завершён");
             room.broadcast_state();
         }
@@ -729,6 +730,13 @@ impl Lobby {
             })
             .map(|r| r.id)
     }
+}
+
+/// Счётчик завершённых матчей (для /metrics).
+static MATCHES_TOTAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub fn matches_total() -> u64 {
+    MATCHES_TOTAL.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// Текущий сезон: календарный месяц UTC «YYYY-MM».

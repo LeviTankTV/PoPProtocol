@@ -1,0 +1,16 @@
+{
+  "host": "ws://127.0.0.1:18440",
+  "clients": 50,
+  "seconds": 20,
+  "wall": 20,
+  "connects": 50,
+  "rooms": 1827,
+  "matches": 41,
+  "snapshots": 21608,
+  "snapPerSec": 1077,
+  "errors": 0,
+  "connect_p50": 100,
+  "connect_p95": 118,
+  "snapGap_p50": 33,
+  "snapGap_p95": 35
+}

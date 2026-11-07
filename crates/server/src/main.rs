@@ -33,6 +33,7 @@ pub(crate) struct AppState {
     pub(crate) ws_clients: Arc<AtomicUsize>,
     pub(crate) store: Arc<Store>,
     pub(crate) lobby: Arc<Lobby>,
+    pub(crate) uptime_start: std::time::Instant,
 }
 
 #[tokio::main]
@@ -50,6 +51,7 @@ async fn main() {
         ws_clients: Arc::new(AtomicUsize::new(0)),
         store,
         lobby,
+        uptime_start: std::time::Instant::now(),
     };
     Lobby::spawn_sweeper(state.lobby.as_ref().clone());
     let port: u16 = std::env::var("PORT")
@@ -67,6 +69,7 @@ async fn main() {
         .route("/api/maps", get(maps_rest))
         .route("/api/season", get(season_rest))
         .route("/api/profile", get(profile_rest))
+        .route("/metrics", get(metrics_rest))
         .route("/ws", get(ws::upgrade))
         .with_state(state);
 
@@ -153,6 +156,68 @@ async fn profile_rest(
         Some(p) => Json(p).into_response(),
         None => (axum::http::StatusCode::NOT_FOUND, "no such player").into_response(),
     }
+}
+
+/// Метрики Prometheus: живые счётчики сервера.
+async fn metrics_rest(State(state): State<AppState>) -> Response {
+    let mut text = String::new();
+    text.push_str(
+        "# HELP pop_uptime_seconds Время работы сервера.
+# TYPE pop_uptime_seconds gauge
+",
+    );
+    text.push_str(&format!(
+        "pop_uptime_seconds {}
+",
+        state.uptime_start.elapsed().as_secs()
+    ));
+    text.push_str(
+        "# HELP pop_ws_clients Активные WebSocket-соединения.
+# TYPE pop_ws_clients gauge
+",
+    );
+    text.push_str(&format!(
+        "pop_ws_clients {}
+",
+        state.ws_clients.load(std::sync::atomic::Ordering::Relaxed)
+    ));
+    let rooms = state.lobby.room_list().await;
+    let players: u32 = rooms.iter().map(|r| r.players as u32).sum();
+    text.push_str(
+        "# HELP pop_rooms Открытые комнаты.
+# TYPE pop_rooms gauge
+",
+    );
+    text.push_str(&format!(
+        "pop_rooms {}
+",
+        rooms.len()
+    ));
+    text.push_str(
+        "# HELP pop_players Игроки в комнатах.
+# TYPE pop_players gauge
+",
+    );
+    text.push_str(&format!(
+        "pop_players {players}
+"
+    ));
+    text.push_str(
+        "# HELP pop_matches_total Завершённые матчи.
+# TYPE pop_matches_total counter
+",
+    );
+    text.push_str(&format!(
+        "pop_matches_total {}
+",
+        crate::lobby::matches_total()
+    ));
+    (
+        axum::http::StatusCode::OK,
+        [("content-type", "text/plain; version=0.0.4")],
+        text,
+    )
+        .into_response()
 }
 
 /// Глобальный топ по XP.

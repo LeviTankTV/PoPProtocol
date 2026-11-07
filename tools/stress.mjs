@@ -20,7 +20,7 @@ function client(name) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(BASE);
     const c = { ws, name, bytes: 0, msgs: 0, snapCount: 0, roomId: null, phase: "hello" };
-    ws.onopen = () => ws.send(Buffer.concat([u32(0), u16(4), str(name), opt(null)]));
+    ws.onopen = () => ws.send(Buffer.concat([u32(0), u16(6), str(name), opt(null)]));
     ws.onclose = (e) => { if (c.phase === "hello") c.closedCode = e.code; };
     ws.onmessage = async (ev) => {
       const d = ev.data;

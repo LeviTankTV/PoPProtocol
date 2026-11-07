@@ -1,0 +1,72 @@
+{
+  "title": "PoP - Protocol",
+  "uid": "pop-main",
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "WS клиенты",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "pop_ws_clients"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Игроки в комнатах",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "pop_players"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Комнаты",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "targets": [
+        {
+          "expr": "pop_rooms"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Матчей/сек",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "targets": [
+        {
+          "expr": "rate(pop_matches_total[1m]) * 60"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39
+}
