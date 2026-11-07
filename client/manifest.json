@@ -1,0 +1,12 @@
+{
+  "name": "PoP - Protocol",
+  "short_name": "PoP",
+  "description": "Мультиплеерный арканоид-батл: мяч, ракетка, боссы",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#fff4ec",
+  "theme_color": "#ff6b6b",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

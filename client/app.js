@@ -10,7 +10,7 @@ const I18N = {
     connecting: "подключение…", online: "сервер онлайн", offline: "сервер недоступен, переподключение…",
     roomName: "название комнаты", roomPass: "пароль (необязательно)", create: "Создать",
     joinCode: "код комнаты", joinPass: "пароль", joinByCode: "Войти по коду", refresh: "↻ обновить",
-    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд", edOpen: "Открыть редактор", edName: "Название карты", edRows: "Строк:", edClear: "Очистить", edTest: "▶ Тест", edPublish: "🌍 Опубликовать", edClose: "← Меню", mapsEmpty: "карт пока нет — создай первую!", playMap: "Играть",
+    leaderboard: "🏆 Топ игроков", ready: "Готов", notReady: "Не готов", secCreate: "🏠 Создать комнату", secJoin: "🚪 Войти по коду", secRooms: "📋 Открытые комнаты", secTop: "🏆 Зал славы", joinHint: "код скажет друг, который создал комнату", start: "▶ Старт", leave: "Выйти", exitMenu: "Выйти в меню", becomePlayer: "Стать игроком", ultPick: "Ульта:", ultNone: "Нет", ultIce: "❄ Ледяная волна", ultMeteor: "☄ Метеорит", ultMagnet: "🧲 Магнит", ultReady: "заряд", edOpen: "Открыть редактор", edName: "Название карты", edRows: "Строк:", edClear: "Очистить", edTest: "▶ Тест", edPublish: "🌍 Опубликовать", edClose: "← Меню", mapsEmpty: "карт пока нет — создай первую!", playMap: "Играть", npTitle: "Сеть", tutTitle1: "Привет! Это PoP - Protocol", tutText1: "Двигай 🏏 ракеткой мышью. Мяч отскакивает и разбивает кирпичи сверху.", tutTitle2: "Капсулы и бонусы", tutText2: "Ловля 🎁 капсул даёт бонусы: лазер, шире ракетка, мульти-мяч. Красные — ловушки!", tutTitle3: "Боссы каждые 3 уровня", tutText3: "Бей мячом в босса. Мины и пули станят ракетку — уворачивайся! Комбо ×5 заряжает ульту (клавиша U).", tutTitle4: "Командная игра", tutText4: "Создай комнату, зови друзей по коду или добавляй ботов. Тренировка: комната с ботами-новичками.", tutNext: "Дальше", tutSkip: "Пропустить", tutTrain: "🎯 Тренировка", setTitle: "Настройки", setMusic: "Музыка", setSfx: "Звуки", setParts: "Частицы", setAll: "все", setLess: "меньше", setOff: "выкл", setMode: "Мышь", setAbs: "абсолютно", setRel: "относительная", setSens: "Сенса", setNet: "Панель сети", setReset: "Сбросить прогресс", setClose: "Готово",
     bots: "Боты:", botLazy: "+ Лентяй", botNormal: "+ Обычный", botPro: "+ Профи",
     hint: "мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции",
     noRooms: "Пока нет комнат — создайте первую!", enter: "Войти", inProgress: "▶ идёт матч", lobbySt: "лобби",
@@ -24,7 +24,7 @@ const I18N = {
     connecting: "connecting…", online: "server online", offline: "server unreachable, reconnecting…",
     roomName: "room name", roomPass: "password (optional)", create: "Create",
     joinCode: "room code", joinPass: "password", joinByCode: "Join by code", refresh: "↻ refresh",
-    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges", edOpen: "Open editor", edName: "Map name", edRows: "Rows:", edClear: "Clear", edTest: "▶ Test", edPublish: "🌍 Publish", edClose: "← Menu", mapsEmpty: "no maps yet — build the first one!", playMap: "Play",
+    leaderboard: "🏆 Leaderboard", ready: "Ready", notReady: "Not ready", secCreate: "🏠 Create a room", secJoin: "🚪 Join by code", secRooms: "📋 Open rooms", secTop: "🏆 Hall of fame", joinHint: "ask the friend who created the room for the code", start: "▶ Start", leave: "Leave", exitMenu: "Exit to menu", becomePlayer: "Become a player", ultPick: "Ultimate:", ultNone: "None", ultIce: "❄ Ice Wave", ultMeteor: "☄ Meteor", ultMagnet: "🧲 Magnet", ultReady: "charges", edOpen: "Open editor", edName: "Map name", edRows: "Rows:", edClear: "Clear", edTest: "▶ Test", edPublish: "🌍 Publish", edClose: "← Menu", mapsEmpty: "no maps yet — build the first one!", playMap: "Play", npTitle: "Network", tutTitle1: "Hi! This is PoP - Protocol", tutText1: "Move the 🏏 paddle with your mouse. The ball bounces and breaks bricks above.", tutTitle2: "Capsules & power-ups", tutText2: "Catch 🎁 capsules for bonuses: laser, wider paddle, multi-ball. Red ones are traps!", tutTitle3: "Bosses every 3 levels", tutText3: "Smash the boss with your ball. Mines and bullets stun your paddle — dodge! Combo ×5 charges your ultimate (key U).", tutTitle4: "Play together", tutText4: "Create a room, share the code or add bots. Training: a room with lazy bots.", tutNext: "Next", tutSkip: "Skip", tutTrain: "🎯 Training", setTitle: "Settings", setMusic: "Music", setSfx: "SFX", setParts: "Particles", setAll: "all", setLess: "less", setOff: "off", setMode: "Mouse", setAbs: "absolute", setRel: "relative", setSens: "Sensitivity", setNet: "Net panel", setReset: "Reset progress", setClose: "Done",
     bots: "Bots:", botLazy: "+ Lazy", botNormal: "+ Normal", botPro: "+ Pro",
     hint: "mouse — paddle · click/space — launch · 1–8 — emotes",
     noRooms: "No rooms yet — create the first one!", enter: "Join", inProgress: "▶ playing", lobbySt: "lobby",
@@ -99,6 +99,9 @@ const S = {
   overUntil: 0, overPending: false, // анимационная пауза после матча
   prevShieldHps: [],                // HP щитов с прошлого снапшота (вспышки урона)
   editor: null,                     // { rows: string[], tool: string }
+  settings: { musicVol: 1, sfxVol: 1, particles: "all", mode: "abs", sens: 1, netPanel: false, forceLag: 0 },
+  rtt: null, jit: null, snapBytes: 0, lastRecv: 0, recvEma: 0, recvVar: 0,
+  relX: null,
   bgDirty: true, bricksDirty: true, bgBoss: false, // кэши статики
 };
 
@@ -120,7 +123,17 @@ function connect() {
     setStatus(t("offline"), "err");
     setTimeout(connect, 1500);
   };
-  ws.onmessage = (e) => handle(decodeMsg(new Uint8Array(e.data)));
+  ws.onmessage = (e) => {
+    const now = performance.now();
+    if (S.lastRecv) {
+      const dt = now - S.lastRecv;
+      S.recvEma = S.recvEma ? S.recvEma * 0.9 + dt * 0.1 : dt;
+      S.recvVar = S.recvVar ? S.recvVar * 0.9 + (dt - S.recvEma) ** 2 * 0.1 : 0;
+    }
+    S.lastRecv = now;
+    S.snapBytes = e.data.size !== undefined ? e.data.size : e.data.byteLength || 0;
+    handle(decodeMsg(new Uint8Array(e.data)));
+  };
 }
 function decodeMsg(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -129,11 +142,45 @@ function decodeMsg(bytes) {
 }
 const send = (buf) => { if (S.connected) S.ws.send(buf); };
 
+/* ---------- обучение новичков ---------- */
+function maybeTutorial() {
+  if (localStorage.getItem("pop_tut")) return;
+  const ov = document.getElementById("tutorial");
+  if (!ov) return;
+  const steps = [
+    ["tutTitle1", "tutText1"],
+    ["tutTitle2", "tutText2"],
+    ["tutTitle3", "tutText3"],
+    ["tutTitle4", "tutText4"],
+  ];
+  let i = 0;
+  const show = () => {
+    document.getElementById("tut-title").textContent = t(steps[i][0]);
+    document.getElementById("tut-text").textContent = t(steps[i][1]);
+  };
+  show();
+  ov.style.display = "flex";
+  const done = () => { localStorage.setItem("pop_tut", "1"); ov.style.display = "none"; };
+  document.getElementById("tut-next").onclick = () => {
+    i++;
+    if (i >= steps.length) {
+      done();
+      // тренировочная комната: 2 бота-новичка
+      send(P.mCreateRoom(t("tutTrain"), null, 0, { max_players: 10, events_enabled: false, bosses_enabled: false, speed_factor: 0.8, custom_rows: null }));
+    } else show();
+  };
+  document.getElementById("tut-skip").onclick = done;
+}
+
 /* ---------- обработка серверных сообщений ---------- */
 function handle(m) {
   switch (m.t) {
+    case "Pong":
+      S.rtt = Math.max(0, Date.now() - m.n);
+      break;
     case "Welcome":
       hideLoading();
+      maybeTutorial();
       S.myId = m.player_id; S.myName = m.name; S.token = m.token;
       localStorage.setItem("pop_token", m.token);
       localStorage.setItem("pop_name", m.name);
@@ -145,11 +192,32 @@ function handle(m) {
         send(P.mRoomList());
       }
       break;
-    case "Error": toast("⚠ " + m.text); break;
+    case "Error":
+      toast("⚠ " + m.text);
+      // ник занят/токен умер (например, после сброса хранилища): пробуем новое имя
+      if (m.code === 1 /* NameTaken */ || m.code === 2 /* BadToken */) {
+        if (!S.room) {
+          localStorage.removeItem("pop_token");
+          S.token = null;
+          S.myName = "Игрок" + ((Math.random() * 900 + 100) | 0);
+          localStorage.setItem("pop_name", S.myName);
+          if (S.ws && S.ws.readyState === 1) S.ws.send(P.mHello(S.myName, null));
+        }
+      }
+      break;
     case "RoomList": renderRoomList(m.list); break;
     case "RoomState":
       S.room = m;
       S.isHost = m.host_id === S.myId;
+      // тренировка из обучения: хост добавляет двух ботов-новичков
+      if (S.isHost && S.room.name === t("tutTrain") && !S.tutBotsAdded) {
+        const botN = S.room.players.filter((p) => p.is_bot).length;
+        if (botN === 0) {
+          S.tutBotsAdded = true;
+          send(P.mAddBot(0));
+          setTimeout(() => send(P.mAddBot(0)), 300);
+        }
+      }
       localStorage.setItem("pop_room_code", m.code);
       if (m.phase === 0) {
         // после матча показываем итоги с анимацией, потом мягкий переход в лобби
@@ -473,7 +541,8 @@ async function initPixi() {
     if (S.fpsAcc >= 1000) {
       S.fps = S.fpsFrames * 1000 / S.fpsAcc;
       S.fpsFrames = 0; S.fpsAcc = 0;
-      if (S.fps < 45) S.particlesOn = false;
+      if (S.fps < 45 || S.settings.particles === "off") S.particlesOn = false;
+  else S.particlesOn = S.settings.particles !== "off";
     }
   });
   fitCanvas(800);
@@ -508,7 +577,7 @@ function tone(freq, dur, type, gain, slideTo) {
   const o = c.createOscillator(), gn = c.createGain();
   o.type = type; o.frequency.setValueAtTime(freq, c.currentTime);
   if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, c.currentTime + dur);
-  gn.gain.setValueAtTime(gain, c.currentTime);
+  gn.gain.setValueAtTime(gain * (S.settings ? S.settings.sfxVol : 1), c.currentTime);
   gn.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
   o.connect(gn); gn.connect(c.destination);
   o.start(); o.stop(c.currentTime + dur + 0.05);
@@ -841,7 +910,7 @@ function render() {
   if (!g) return;
   g.clear();
   if (!S.latest) { drawIdleTitle(); return; }
-  const delay = Math.min(140, Math.max(50, (S.snapInt || 100) * 1.6));
+  const delay = Math.min(140, Math.max(50, (S.snapInt || 100) * 1.6)) + (S.settings.forceLag || 0);
   const rt = performance.now() - delay;
   const buf = S.snapBuf.length ? S.snapBuf : [{ recv: 0, snap: S.latest }];
   const W = S.latest.field_w, H = S.latest.field_h;
@@ -1098,7 +1167,13 @@ function bindInput() {
     if (!c || !S.latest || document.getElementById("screen-game").style.display === "none") return;
     const rect = c.getBoundingClientRect();
     if (!rect.width) return;
-    S.inputX = (e.clientX - rect.left) / rect.width * S.latest.field_w;
+    if (S.settings.mode === "rel") {
+      if (S.relX === null) S.relX = (e.clientX - rect.left) / rect.width * S.latest.field_w;
+      S.relX = Math.max(0, Math.min(S.latest.field_w, S.relX + e.movementX * (S.settings.sens || 1)));
+      S.inputX = S.relX;
+    } else {
+      S.inputX = (e.clientX - rect.left) / rect.width * S.latest.field_w;
+    }
     throttledPaddle();
   });
   document.addEventListener("pointerdown", (e) => {
@@ -1145,7 +1220,7 @@ function musicNote(freq, dur, gain) {
   const o = c.createOscillator(), gn = c.createGain();
   o.type = "triangle";
   o.frequency.value = freq;
-  gn.gain.setValueAtTime(gain, c.currentTime);
+  gn.gain.setValueAtTime(gain * (S.settings ? S.settings.musicVol : 1), c.currentTime);
   gn.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
   o.connect(gn); gn.connect(c.destination);
   o.start(); o.stop(c.currentTime + dur + 0.05);
@@ -1154,15 +1229,34 @@ function musicNote(freq, dur, gain) {
 function musicStep() {
   if (!MUSIC.on) return;
   const inMatch = document.getElementById("screen-game").style.display !== "none";
-  const intense = inMatch && (S.latest?.boss || (S.latest?.events || []).length > 0);
+  const comboHot = (S.latest?.combo || []).some((c) => c.combo >= 5);
+  const fxHot = (S.latest?.fx || 0) > 0;
+  const intense = inMatch && (S.latest?.boss || (S.latest?.events || []).length > 0 || comboHot || fxHot);
   const period = intense ? 140 : 220; // мс на шаг
   // мелодия: пентатоника со случайным блужданием
   MUSIC.step = Math.max(0, Math.min(PENTA.length - 1, MUSIC.step + ((Math.random() * 3) | 0) - 1));
   const note = PENTA[MUSIC.step];
   musicNote(note, intense ? 0.16 : 0.3, intense ? 0.05 : 0.035);
-  if (intense && MUSIC.step % 2 === 0) musicNote(note / 2, 0.2, 0.05); // бас
+  // слой 1: бас на боссах/ивентах
+  if (intense && MUSIC.step % 2 === 0) musicNote(note / 2, 0.2, 0.05);
+  // слой 2: арпеджио при горячем комбо
+  if (comboHot && MUSIC.step % 4 === 3) musicNote(note * 2, 0.1, 0.028);
+  // слой 3: «хай-хэт» при активной ульте
+  if (fxHot && MUSIC.step % 2 === 1) noiseTick(0.04);
   clearInterval(MUSIC.timer);
   MUSIC.timer = setInterval(musicStep, period);
+}
+
+function noiseTick(gain) {
+  const c = MUSIC.ctx; if (!c) return;
+  const buf = c.createBuffer(1, 441, 44100);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+  const src = c.createBufferSource(), gn = c.createGain();
+  src.buffer = buf;
+  gn.gain.value = gain * (S.settings ? S.settings.musicVol : 1);
+  src.connect(gn); gn.connect(c.destination);
+  src.start();
 }
 
 function toggleMusic() {
@@ -1185,9 +1279,15 @@ window.addEventListener("DOMContentLoaded", async () => {
   applyLang();
   showLoading(false);
   await initPixi();
+  try {
+    const saved = JSON.parse(localStorage.getItem("pop_settings") || "{}");
+    Object.assign(S.settings, saved);
+  } catch {}
   bindInput();
   showScreen("menu");
   connect();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  setInterval(() => { if (S.connected) send(P.mPing(Date.now())); }, 2000);
 
   document.getElementById("btn-create").onclick = () => {
     const name = document.getElementById("room-name").value.trim() || "Комната";
@@ -1354,6 +1454,45 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (window.__loadTop) window.__loadTop();
   };
   document.getElementById("btn-sound").onclick = toggleMusic;
+  const st = document.getElementById("settings-modal");
+  const setVal = (id, v) => (document.getElementById(id).value = v);
+  const applySettingsUi = () => {
+    setVal("set-music", Math.round(S.settings.musicVol * 100));
+    setVal("set-sfx", Math.round(S.settings.sfxVol * 100));
+    document.getElementById("set-parts").value = S.settings.particles;
+    document.getElementById("set-mode").value = S.settings.mode;
+    setVal("set-sens", Math.round(S.settings.sens * 100));
+    document.getElementById("set-net").checked = S.settings.netPanel;
+    document.getElementById("netpanel").style.display = S.settings.netPanel ? "block" : "none";
+  };
+  applySettingsUi();
+  const saveSettings = () => localStorage.setItem("pop_settings", JSON.stringify(S.settings));
+  document.getElementById("btn-settings").onclick = () => { applySettingsUi(); st.style.display = "flex"; };
+  document.getElementById("set-close").onclick = () => { st.style.display = "none"; saveSettings(); };
+  document.getElementById("set-music").oninput = (e) => { S.settings.musicVol = e.target.value / 100; };
+  document.getElementById("set-sfx").oninput = (e) => { S.settings.sfxVol = e.target.value / 100; };
+  document.getElementById("set-parts").onchange = (e) => { S.settings.particles = e.target.value; };
+  document.getElementById("set-mode").onchange = (e) => { S.settings.mode = e.target.value; S.relX = null; };
+  document.getElementById("set-sens").oninput = (e) => { S.settings.sens = e.target.value / 100; };
+  document.getElementById("set-net").onchange = (e) => {
+    S.settings.netPanel = e.target.checked;
+    document.getElementById("netpanel").style.display = S.settings.netPanel ? "block" : "none";
+    saveSettings();
+  };
+  document.getElementById("set-reset").onclick = () => { if (confirm("Сбросить прогресс?")) { localStorage.removeItem("pop_token"); localStorage.removeItem("pop_name"); location.reload(); } };
+  // панель сети: обновление 2 Гц
+  setInterval(() => {
+    if (!S.settings.netPanel) return;
+    const jit = S.recvVar ? Math.sqrt(S.recvVar) : 0;
+    document.getElementById("np-rtt").textContent = "RTT: " + (S.rtt === null ? "—" : Math.round(S.rtt) + " мс");
+    document.getElementById("np-jit").textContent = "джиттер: " + Math.round(jit) + " мс";
+    document.getElementById("np-snap").textContent = "снапшот: " + S.snapBytes + " Б";
+    document.getElementById("np-delay").textContent = "задержка рендера: " + Math.round(Math.min(140, Math.max(50, (S.snapInt || 100) * 1.6)) + (S.settings.forceLag || 0)) + " мс";
+  }, 500);
+  document.getElementById("np-lag").oninput = (e) => {
+    S.settings.forceLag = +e.target.value;
+    document.getElementById("np-lagv").textContent = e.target.value;
+  };
   document.getElementById("btn-bot-lazy").onclick = () => send(P.mAddBot(0));
   document.getElementById("btn-bot-normal").onclick = () => send(P.mAddBot(1));
   document.getElementById("btn-bot-pro").onclick = () => send(P.mAddBot(2));
