@@ -120,7 +120,7 @@ function readSnapshot(r) {
   const combo = r.vec(() => ({ player_id: r.u32(), combo: r.u8() }));
   const scores = r.vec(() => ({ player_id: r.u32(), score: r.u32(), lives: r.u8() }));
   const fx = r.u8();
-  const projs = r.vec(() => ({ id: r.u16(), x: r.u16() / 10, y: r.u16() / 10 }));
+  const projs = r.vec(() => ({ id: r.u16(), x: r.u16() / 10, y: r.u16() / 10, kind: r.u8() }));
   return { t: "Snapshot", tick, field_w, field_h, phase, level, players, balls, bricks_upsert, bricks_removed, capsules, bullets, events, boss, combo, scores, fx, projs };
 }
 

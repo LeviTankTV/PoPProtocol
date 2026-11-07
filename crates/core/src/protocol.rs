@@ -285,6 +285,8 @@ pub struct ProjSnap {
     pub id: u16,
     pub x: u16,
     pub y: u16,
+    /// 0 стан-пуля, 1 мина, 2 золотая бочка, 3 бочка-ловушка.
+    pub kind: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -585,6 +587,7 @@ mod tests {
                 id: 1,
                 x: 100,
                 y: 400,
+                kind: 0,
             }],
         };
         roundtrip(ServerMsg::Snapshot(Box::new(snap)));

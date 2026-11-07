@@ -35,7 +35,7 @@ pub const CAPSULE_FALL_SPEED: f32 = 130.0;
 
 /* ---------- режимы (спецификация §7) ---------- */
 /// Боссов подряд в Босс-раше.
-pub const BOSS_RUSH_BOSSES: u32 = 5;
+pub const BOSS_RUSH_BOSSES: u32 = 6;
 /// Период новой волны кирпичей в режиме Волна (сек).
 pub const WAVE_PERIOD: f32 = 12.0;
 
@@ -294,7 +294,7 @@ impl Game {
                     .iter()
                     .filter(|p| p.connected && !p.gone && p.lives > 0)
                     .count();
-                let kind_index = g.boss_kind_counter % crate::boss::BOSS_KINDS;
+                let kind_index = boss_kind_index_override(g.boss_kind_counter);
                 g.boss_kind_counter += 1;
                 g.boss = Some(crate::boss::Boss::new(kind_index, living, g.field.w));
             }
@@ -313,7 +313,7 @@ impl Game {
                 .iter()
                 .filter(|p| p.connected && !p.gone && p.lives > 0)
                 .count();
-            let kind_index = g.boss_kind_counter % crate::boss::BOSS_KINDS;
+            let kind_index = boss_kind_index_override(g.boss_kind_counter);
             g.boss_kind_counter += 1;
             g.boss = Some(crate::boss::Boss::new(kind_index, living, g.field.w));
         }
@@ -1166,10 +1166,14 @@ impl Game {
                 .map(|p| (p.slot, self.field.paddles[p.slot].x))
                 .collect();
             let boss = self.boss.as_mut().unwrap();
-            let (stunned, _died) = boss.step(dt, &mut self.field, &paddle_xs);
-            for slot in stunned {
-                if let Some(p) = self.players.iter_mut().find(|p| p.slot == slot) {
-                    p.stun_secs = STUN_SECS;
+            let (hits, _died) = boss.step(dt, &mut self.field, &paddle_xs);
+            for hit in hits {
+                if let Some(p) = self.players.iter_mut().find(|p| p.slot == hit.slot) {
+                    match hit.kind {
+                        1 => p.score += 200,    // золотая бочка
+                        2 => p.stun_secs = 1.5, // ловушка
+                        _ => p.stun_secs = STUN_SECS,
+                    }
                 }
             }
         }
@@ -1279,7 +1283,7 @@ impl Game {
         if self.mode == GameMode::BossRush {
             self.field.bricks.clear();
             self.field.grid_clear();
-            let kind_index = self.boss_kind_counter % crate::boss::BOSS_KINDS;
+            let kind_index = boss_kind_index_override(self.boss_kind_counter);
             self.boss_kind_counter += 1;
             let living = self
                 .players
@@ -1464,6 +1468,7 @@ impl Game {
                             id: p.id,
                             x: encode_coord(p.x),
                             y: encode_coord(p.y),
+                            kind: p.kind,
                         })
                         .collect()
                 })
@@ -1471,6 +1476,15 @@ impl Game {
             fx: self.field.fx_mask(),
         }
     }
+}
+
+/// Отладка/демо: POPGO_BOSS_KIND фиксирует тип босса (0..5), иначе цикл по счётчику.
+fn boss_kind_index_override(counter: u8) -> u8 {
+    std::env::var("POPGO_BOSS_KIND")
+        .ok()
+        .and_then(|v| v.parse::<u8>().ok())
+        .filter(|k| *k < crate::boss::BOSS_KINDS)
+        .unwrap_or(counter % crate::boss::BOSS_KINDS)
 }
 
 fn brick_snap(b: &Brick) -> popproto_core::BrickSnap {
@@ -2191,6 +2205,7 @@ mod tests {
             x: px,
             y: g.field.h - 80.0,
             vx: 0.0,
+            kind: crate::boss::PROJ_STUN,
             vy: crate::boss::PROJ_SPEED,
         });
         for _ in 0..20 {

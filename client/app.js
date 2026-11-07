@@ -862,7 +862,14 @@ function render() {
   if (boss) {
     const be = entityAtObj(buf, rt, (s0) => s0.boss);
     const bx = be ? be.x : boss.x, by = be ? be.y : boss.y;
-    const KIND_COLORS = [[0x8e7cf3, 0x5a3fd6], [0x7ed6f5, 0x2b7bb5], [0xffb03a, 0xf0640f]];
+    const KIND_COLORS = [
+      [0x8e7cf3, 0x5a3fd6], // Кракен
+      [0x7ed6f5, 0x2b7bb5], // Голем
+      [0xffb03a, 0xf0640f], // Кубик
+      [0xff9ff3, 0xf368e9], // Медуза
+      [0xfeca57, 0xff9f43], // Золото-босс
+      [0xc8d6f0, 0x8395a7], // Зеркальный клон
+    ];
     const [bc1, bc2] = KIND_COLORS[boss.kind] || KIND_COLORS[0];
     const time = performance.now() / 1000;
     // ---- тематический босс-бар: крупный, скруглённый, с именем-волной ----
@@ -882,9 +889,9 @@ function render() {
     }
     g.roundRect(bx0, by0, bw, bh, 10).stroke({ color: 0xffffff, width: 2, alpha: 0.85 });
     // имя босса волной (по символам, спавн при появлении босса)
-    const KIND_NAMES_RU = ["КРАКЕН", "ЛЕДЯНОЙ ГОЛЕТ", "МЕГА-КУБИК"];
-    const KIND_NAMES_EN = ["KRAKEN", "ICE GOLEM", "MEGA CUBE"];
-    const KIND_NAME_COLORS = [0xb39ddb, 0x81d4fa, 0xffcc80];
+    const KIND_NAMES_RU = ["КРАКЕН", "ЛЕДЯНОЙ ГОЛЕТ", "МЕГА-КУБИК", "МЕДУЗА-КОРОЛЕВА", "ЗОЛОТО-БОСС", "ЗЕРКАЛЬНЫЙ КЛОН"];
+    const KIND_NAMES_EN = ["KRAKEN", "ICE GOLEM", "MEGA CUBE", "MEDUSA QUEEN", "GOLD BARON", "MIRROR CLONE"];
+    const KIND_NAME_COLORS = [0xb39ddb, 0x81d4fa, 0xffcc80, 0xffc1e8, 0xffe08a, 0xd6e4ff];
     const nameText = (LANG === "en" ? KIND_NAMES_EN : KIND_NAMES_RU)[boss.kind] || "BOSS";
     if (!window.__bossName || window.__bossName.kind !== boss.kind || window.__bossName.text !== nameText) {
       if (window.__bossName) window.__bossName.chars.forEach((c) => c.destroy());
@@ -944,12 +951,32 @@ function render() {
     if (boss.phase) g.circle(bx, by, 52 + 4 * Math.sin(time * 10)).fill({ color: 0xff6b6b, alpha: 0.22 });
     g.circle(bx, by, 42).fill(bc2);
     g.circle(bx, by, 30 + pulse).fill(boss.phase ? 0xff6b6b : bc1);
-    // ---- снаряды: интерполяция по id ----
+    // ---- снаряды по типам: пуля / мина / бочки ----
     for (const p of S.latest.projs || []) {
       const e = entityAt(buf, rt, p.id, (s) => s.projs.find((q) => q.id === p.id));
       if (!e) continue;
-      g.circle(e.x, e.y, 6).fill(0xe0181d);
-      g.circle(e.x, e.y, 3).fill(0xffffff);
+      const t = performance.now() / 1000;
+      if (p.kind === 1) { // мина-медуза
+        g.circle(e.x, e.y + 2, 9).fill({ color: 0xf368e9, alpha: 0.9 });
+        g.circle(e.x, e.y, 7).fill({ color: 0xffc1e8, alpha: 0.95 });
+        for (let k = 0; k < 3; k++) {
+          g.moveTo(e.x - 5 + k * 5, e.y + 6);
+          g.lineTo(e.x - 5 + k * 5 + Math.sin(t * 5 + k) * 2, e.y + 12);
+          g.stroke({ color: 0xf368e9, width: 1.6, alpha: 0.8, cap: "round" });
+        }
+        g.circle(e.x - 2, e.y - 2, 2.2).fill(0xffffff);
+      } else if (p.kind === 2 || p.kind === 3) { // бочки
+        const gold = p.kind === 2;
+        g.roundRect(e.x - 9, e.y - 11, 18, 22, 7).fill({ color: gold ? 0xfeca57 : 0x57606f, alpha: 0.95 });
+        g.roundRect(e.x - 9, e.y - 11, 18, 22, 7).stroke({ color: 0x2f2b44, width: 2, alpha: 0.8 });
+        g.roundRect(e.x - 9, e.y - 4, 18, 3, 1.5).fill({ color: gold ? 0xffffff : 0xff6b6b, alpha: 0.75 });
+        if (gold) {
+          g.text("$", { fontFamily: "Arial", fontSize: 12, fontWeight: "bold", fill: 0x2f2b44 }, e.x, e.y - 2);
+        }
+      } else { // стан-пуля
+        g.circle(e.x, e.y, 6).fill(0xe0181d);
+        g.circle(e.x, e.y, 3).fill(0xffffff);
+      }
     }
   } else if (window.__bossName) {
     window.__bossName.chars.forEach((c) => c.destroy());

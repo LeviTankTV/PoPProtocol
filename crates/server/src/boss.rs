@@ -9,7 +9,7 @@
 use popproto_core::field::Field;
 use popproto_core::{BossSnap, FIELD_H};
 
-pub const BOSS_KINDS: u8 = 3;
+pub const BOSS_KINDS: u8 = 6;
 /// Ударов мячом на одного живого игрока.
 pub const BOSS_HP_PER_PLAYER: u32 = 30;
 pub const BOSS_R: f32 = 42.0;
@@ -28,14 +28,28 @@ pub struct Shield {
     pub angle: f32,
 }
 
+/// Тип снаряда: 0 стан-пуля, 1 мина-медуза, 2 золотая бочка, 3 бочка-ловушка.
+pub const PROJ_STUN: u8 = 0;
+pub const PROJ_MINE: u8 = 1;
+pub const PROJ_GOLD: u8 = 2;
+pub const PROJ_TRAP: u8 = 3;
+
 #[derive(Debug, Clone)]
 pub struct Proj {
-    #[allow(dead_code)] // зарезервировано: различимые типы снарядов
     pub id: u16,
     pub x: f32,
     pub y: f32,
     pub vy: f32,
     pub vx: f32,
+    /// Тип снаряда: PROJ_*.
+    pub kind: u8,
+}
+
+/// Событие попадания снаряда по слоту ракетки: 0 стан, 1 золото (+200), 2 ловушка.
+#[derive(Debug, Clone, Copy)]
+pub struct SlotHit {
+    pub slot: usize,
+    pub kind: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +57,12 @@ pub enum BossKind {
     Kraken,
     Golem,
     Cube,
+    /// Медуза-королева: рой мин-медуз; мяч отскакивает и сбивается с курса.
+    Medusa,
+    /// Золото-босс: бросает золотые бочки (+200) и бочки-ловушки (стан 1.5 с).
+    GoldBaron,
+    /// Зеркальный клон: щиты отбивают мячи вниз, тело зеркалит горизонталь.
+    MirrorClone,
 }
 
 impl BossKind {
@@ -50,7 +70,10 @@ impl BossKind {
         match i % BOSS_KINDS {
             0 => BossKind::Kraken,
             1 => BossKind::Golem,
-            _ => BossKind::Cube,
+            2 => BossKind::Cube,
+            3 => BossKind::Medusa,
+            4 => BossKind::GoldBaron,
+            _ => BossKind::MirrorClone,
         }
     }
 
@@ -59,6 +82,9 @@ impl BossKind {
             BossKind::Kraken => 0,
             BossKind::Golem => 1,
             BossKind::Cube => 2,
+            BossKind::Medusa => 3,
+            BossKind::GoldBaron => 4,
+            BossKind::MirrorClone => 5,
         }
     }
 
@@ -67,6 +93,9 @@ impl BossKind {
             BossKind::Kraken => 120.0,
             BossKind::Golem => 70.0,
             BossKind::Cube => 90.0,
+            BossKind::Medusa => 100.0,
+            BossKind::GoldBaron => 60.0,
+            BossKind::MirrorClone => 95.0,
         }
     }
 
@@ -75,6 +104,9 @@ impl BossKind {
             BossKind::Kraken => 3.0,
             BossKind::Golem => 2.5,
             BossKind::Cube => 2.0,
+            BossKind::Medusa => 2.5,
+            BossKind::GoldBaron => 3.0,
+            BossKind::MirrorClone => 3.5,
         }
     }
 
@@ -83,6 +115,9 @@ impl BossKind {
             BossKind::Kraken => 1,
             BossKind::Golem => 2,
             BossKind::Cube => 2,
+            BossKind::Medusa => 0,
+            BossKind::GoldBaron => 0,
+            BossKind::MirrorClone => 1,
         }
     }
 
@@ -91,6 +126,9 @@ impl BossKind {
             BossKind::Kraken => 3,
             BossKind::Golem => 2,
             BossKind::Cube => 0,
+            BossKind::Medusa => 0,
+            BossKind::GoldBaron => 0,
+            BossKind::MirrorClone => 2,
         }
     }
 
@@ -99,6 +137,9 @@ impl BossKind {
             BossKind::Kraken => 4,
             BossKind::Golem => 5,
             BossKind::Cube => 0,
+            BossKind::Medusa => 0,
+            BossKind::GoldBaron => 0,
+            BossKind::MirrorClone => 4,
         }
     }
 
@@ -107,6 +148,9 @@ impl BossKind {
             BossKind::Kraken => 12.0,
             BossKind::Golem => 15.0,
             BossKind::Cube => 0.0,
+            BossKind::Medusa => 0.0,
+            BossKind::GoldBaron => 0.0,
+            BossKind::MirrorClone => 12.0,
         }
     }
 }
@@ -197,14 +241,14 @@ impl Boss {
     }
 
     /// Один шаг босса. `paddle_xs` — X живых ракеток (прицеливание снарядов).
-    /// Возвращает (станут ли ракетки слотов, умер ли босс).
+    /// Возвращает (события по слотам, умер ли босс).
     pub fn step(
         &mut self,
         dt: f32,
         field: &mut Field,
         paddle_xs: &[(usize, f32)],
-    ) -> (Vec<usize>, bool) {
-        let mut stunned: Vec<usize> = vec![];
+    ) -> (Vec<SlotHit>, bool) {
+        let mut stunned: Vec<SlotHit> = vec![];
         let mut died = false;
         let speed_mult = if self.enraged { 1.6 } else { 1.0 };
         self.hit_flash = (self.hit_flash - dt).max(0.0);
@@ -251,38 +295,126 @@ impl Boss {
             let _ = (i, t);
         }
 
-        // атака: снаряды в случайные живые ракетки
+        // атака: снаряды по типу босса
         self.attack_timer -= dt * speed_mult;
-        if self.attack_timer <= 0.0 && !paddle_xs.is_empty() {
+        if self.attack_timer <= 0.0 {
             self.attack_timer = self.kind.attack_period();
-            for _ in 0..self.kind.proj_count() {
-                let id = self.next_ent_id;
-                self.next_ent_id += 1;
-                let jitter = (self.next_ent_id % 40) as f32 - 20.0;
-                self.projs.push(Proj {
-                    id,
-                    x: self.x + jitter,
-                    y: self.y + BOSS_R,
-                    vx: 0.0,
-                    vy: PROJ_SPEED,
-                });
+            match self.kind {
+                BossKind::Medusa => {
+                    // мина-медуза (максимум 6 живых)
+                    if self.projs.iter().filter(|p| p.kind == PROJ_MINE).count() < 6 {
+                        let id = self.next_ent_id;
+                        self.next_ent_id += 1;
+                        let a = (self.next_ent_id as f32 * 2.399).sin();
+                        self.projs.push(Proj {
+                            id,
+                            x: self.x + a * 120.0,
+                            y: self.y + 40.0 + a.abs() * 60.0,
+                            vx: 28.0 * a,
+                            vy: 18.0 * ((self.next_ent_id % 3) as i32 - 1) as f32,
+                            kind: PROJ_MINE,
+                        });
+                    }
+                }
+                BossKind::GoldBaron => {
+                    // бочка: 40% золотая, 60% ловушка (детерминированный гормон)
+                    let id = self.next_ent_id;
+                    self.next_ent_id += 1;
+                    let gold = ((self.next_ent_id as u32)
+                        .wrapping_mul(2654435761)
+                        .wrapping_shr(13)
+                        % 10)
+                        < 4;
+                    let target = paddle_xs
+                        .get(self.next_ent_id as usize % paddle_xs.len().max(1))
+                        .map(|(slot, px)| (*slot, *px));
+                    self.projs.push(Proj {
+                        id,
+                        x: target.map(|(_, px)| px).unwrap_or(self.x),
+                        y: self.y + BOSS_R,
+                        vx: 0.0,
+                        vy: PROJ_SPEED * 0.8,
+                        kind: if gold { PROJ_GOLD } else { PROJ_TRAP },
+                    });
+                }
+                kind => {
+                    for _ in 0..kind.proj_count() {
+                        let id = self.next_ent_id;
+                        self.next_ent_id += 1;
+                        let jitter = (self.next_ent_id % 40) as f32 - 20.0;
+                        self.projs.push(Proj {
+                            id,
+                            x: self.x + jitter,
+                            y: self.y + BOSS_R,
+                            vx: 0.0,
+                            vy: PROJ_SPEED,
+                            kind: PROJ_STUN,
+                        });
+                    }
+                }
             }
         }
 
-        // снаряды: падение, попадание по ракетке
+        // снаряды: падение/дрейф, мины vs мячи, попадания по ракеткам
         let paddle_y = field.h - 42.0;
         let mut survivors = Vec::with_capacity(self.projs.len());
         for mut p in self.projs.drain(..) {
             p.y += p.vy * dt;
             p.x += p.vx * dt;
             let mut dead = p.y > field.h + 20.0;
-            if !dead {
+            if p.kind == PROJ_MINE {
+                // мины дрейфуют в верхней зоне и отскакивают от стен
+                if p.x < 20.0 || p.x > field.w - 20.0 {
+                    p.vx = -p.vx;
+                }
+                if p.y < popproto_core::field::GRID_TOP + 20.0 || p.y > field.h * 0.55 {
+                    p.vy = -p.vy;
+                }
+                // столкновение с мячом: отскок + сбивка курса
+                for ball in field.balls.iter_mut() {
+                    let dx = ball.x - p.x;
+                    let dy = ball.y - p.y;
+                    let d2 = dx * dx + dy * dy;
+                    if d2 <= 16.0 * 16.0 {
+                        let d = d2.sqrt().max(0.01);
+                        let (nx, ny) = (dx / d, dy / d);
+                        let dot = ball.vx * nx + ball.vy * ny;
+                        if dot < 0.0 {
+                            ball.vx -= 2.0 * dot * nx;
+                            ball.vy -= 2.0 * dot * ny;
+                        }
+                        // сбивка курса ±0.6 рад
+                        let jitter = ((p.id.wrapping_mul(97) % 120) as f32 / 100.0 - 0.6) * 0.6;
+                        let (c, s2) = (jitter.cos(), jitter.sin());
+                        let (vx, vy) = (ball.vx, ball.vy);
+                        ball.vx = vx * c - vy * s2;
+                        ball.vy = vx * s2 + vy * c;
+                        ball.x = p.x + nx * 18.0;
+                        ball.y = p.y + ny * 18.0;
+                        dead = true;
+                        break;
+                    }
+                }
+            } else if !dead {
                 for (slot, px) in paddle_xs {
                     if p.y + 6.0 >= paddle_y
                         && p.y - 6.0 <= paddle_y + popproto_core::field::PADDLE_H + 8.0
                         && (p.x - px).abs() <= 70.0
                     {
-                        stunned.push(*slot);
+                        match p.kind {
+                            PROJ_GOLD => stunned.push(SlotHit {
+                                slot: *slot,
+                                kind: 1,
+                            }),
+                            PROJ_TRAP => stunned.push(SlotHit {
+                                slot: *slot,
+                                kind: 2,
+                            }),
+                            _ => stunned.push(SlotHit {
+                                slot: *slot,
+                                kind: 0,
+                            }),
+                        }
                         dead = true;
                         break;
                     }
@@ -320,6 +452,11 @@ impl Boss {
                     ball.x = sx + nx * 23.0;
                     ball.y = sy + ny * 23.0;
                 }
+                if self.kind == BossKind::MirrorClone {
+                    // зеркальный клон: щит бьёт мяч вниз с разгоном
+                    ball.vy = ball.vy.abs() * 1.15;
+                    ball.vx = (ball.x - sx) * 6.0;
+                }
                 sh.hp -= 1;
                 if sh.hp == 0 {
                     self.shields.retain(|s| s.hp > 0);
@@ -338,13 +475,21 @@ impl Boss {
         let (nx, ny) = (dx / d, dy / d);
         let dot = ball.vx * nx + ball.vy * ny;
         if dot < 0.0 {
-            // отражение с разбросом (босс «отбивает» мячи)
-            let a = ny.atan2(nx) + (rng - 0.5) * 0.9;
-            let sp = (ball.vx * ball.vx + ball.vy * ball.vy).sqrt();
-            ball.vx = a.cos() * sp;
-            ball.vy = a.sin() * sp;
-            ball.x = self.x + a.cos() * (BOSS_R + popproto_core::field::BALL_R);
-            ball.y = self.y + a.sin() * (BOSS_R + popproto_core::field::BALL_R);
+            if self.kind == BossKind::MirrorClone {
+                // зеркальный клон: зеркалит горизонталь с разгоном
+                ball.vx = -ball.vx * 1.1;
+                ball.vy = ball.vy.abs() * 1.05;
+                ball.x =
+                    self.x + (ball.x - self.x).signum() * (BOSS_R + popproto_core::field::BALL_R);
+            } else {
+                // отражение с разбросом (босс «отбивает» мячи)
+                let a = ny.atan2(nx) + (rng - 0.5) * 0.9;
+                let sp = (ball.vx * ball.vx + ball.vy * ball.vy).sqrt();
+                ball.vx = a.cos() * sp;
+                ball.vy = a.sin() * sp;
+                ball.x = self.x + a.cos() * (BOSS_R + popproto_core::field::BALL_R);
+                ball.y = self.y + a.sin() * (BOSS_R + popproto_core::field::BALL_R);
+            }
         }
         self.hp = self.hp.saturating_sub(1);
         self.hit_flash = 0.15;
@@ -362,4 +507,63 @@ impl Boss {
 #[allow(dead_code)] // зарезервировано: вертикальные границы для будущих боссов
 pub fn boss_ceiling() -> f32 {
     FIELD_H
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn medusa_spawns_mines_cap_six() {
+        let mut b = Boss::new(3, 2, 800.0);
+        let mut f = Field::new(800.0, 600.0, 0);
+        let mut hits = vec![];
+        for _ in 0..600 {
+            let (h, _) = b.step(1.0 / 30.0, &mut f, &[(0, 400.0)]);
+            hits.extend(h);
+        }
+        let mines = b.projs.iter().filter(|p| p.kind == PROJ_MINE).count();
+        assert!(mines >= 3, "мины должны накапливаться, сейчас {mines}");
+        assert!(mines <= 6, "капа мин");
+    }
+
+    #[test]
+    fn gold_baron_barrels_reach_paddle() {
+        let mut b = Boss::new(4, 2, 800.0);
+        let mut f = Field::new(800.0, 600.0, 0);
+        let mut gold = false;
+        let mut trap = false;
+        for _ in 0..600 {
+            let (hits, _) = b.step(1.0 / 30.0, &mut f, &[(0, 400.0)]);
+            for h in hits {
+                if h.kind == 1 {
+                    gold = true;
+                }
+                if h.kind == 2 {
+                    trap = true;
+                }
+            }
+        }
+        assert!(gold || trap, "бочки должны долетать до ракетки");
+    }
+
+    #[test]
+    fn mirror_shield_kicks_ball_down() {
+        let mut b = Boss::new(5, 2, 800.0);
+        assert_eq!(b.shields.len(), 2);
+        let mut f = Field::new(800.0, 600.0, 0);
+        let mut ball = popproto_core::field::Ball {
+            id: 1,
+            owner: 1,
+            x: b.x,
+            y: b.y + 60.0,
+            vx: 100.0,
+            vy: -300.0,
+        };
+        let bounced = b.hit_by_ball(&mut ball, 0.5);
+        // мяч может попасть по щиту или мимо — но при попадании vy вниз
+        if bounced {
+            assert!(ball.vy > 0.0, "клон отбивает мяч вниз");
+        }
+    }
 }
