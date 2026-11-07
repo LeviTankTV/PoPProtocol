@@ -36,7 +36,7 @@ class R {
 
 // PlayerInfo: общий читатель (v2: онлайн-флаг в конце)
 function readPI(r) {
-  return { id: r.u32(), name: r.str(), ready: !!r.u8(), is_bot: !!r.u8(), bot: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(), online: !!r.u8(), ult: r.u8() };
+  return { id: r.u32(), name: r.str(), ready: !!r.u8(), is_bot: !!r.u8(), bot: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(), online: !!r.u8(), ult: r.u8(), skin: r.u8() };
 }
 function readRoomState(r) {
   const room_id = r.u32(), code = r.str(), name = r.str(), mode = r.u32();

@@ -81,6 +81,18 @@ pub enum ClientMsg {
     },
     /// Запросить список опубликованных карт.
     RequestMaps,
+    /// Купить скин за XP.
+    BuySkin {
+        skin: u8,
+    },
+    /// Надеть купленный скин.
+    EquipSkin {
+        skin: u8,
+    },
+    /// Забрать награду квеста дня (индекс 0..2).
+    ClaimQuest {
+        index: u8,
+    },
 }
 
 /* ---------- сервер -> клиент ---------- */
@@ -224,6 +236,8 @@ pub struct PlayerInfo {
     pub online: bool,
     /// Выбранная ульта: 0 нет, 1 ледяная волна, 2 метеорит, 3 магнит.
     pub ult: u8,
+    /// Косметический скин мяча (индекс каталога).
+    pub skin: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -635,6 +649,7 @@ mod tests {
                 xp: 42,
                 online: true,
                 ult: 0,
+                skin: 0,
             }],
             spectators: vec![],
         };

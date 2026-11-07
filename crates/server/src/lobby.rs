@@ -100,6 +100,7 @@ fn info_from_record(rec: &PlayerRecord, color: u8) -> PlayerInfo {
         color,
         xp: rec.xp,
         ult: 0,
+        skin: rec.skin,
         online: true,
     }
 }
@@ -350,6 +351,7 @@ impl Lobby {
             color: color_slot,
             xp: 0,
             ult: 0,
+            skin: 0,
             online: true,
         };
         room.broadcast(ServerMsg::PlayerJoined(Box::new(info.clone())));
@@ -425,6 +427,10 @@ impl Lobby {
                     elo_delta,
                     &season,
                 )
+                .await;
+            // квесты: кирпичи ~ счёт/10, победа, очки за день
+            self.store
+                .quest_bump(*player_id, score / 10, place == 1, *score)
                 .await;
         }
     }
@@ -542,6 +548,37 @@ impl Lobby {
     /// Список последних карт для HTTP /api/maps.
     pub async fn maps_list(&self, limit: usize) -> Vec<MapInfo> {
         self.store.list_maps(limit).await
+    }
+
+    /// Каталог цен скинов (индекс -> цена XP).
+    pub fn skin_price(skin: u8) -> u32 {
+        const PRICES: [u32; 6] = [0, 500, 1000, 1500, 2500, 5000];
+        PRICES.get(skin as usize).copied().unwrap_or(u32::MAX)
+    }
+
+    /// Купить скин за XP.
+    pub async fn buy_skin(&self, player_id: u32, skin: u8) -> Result<(), LobbyError> {
+        self.store
+            .buy_skin(player_id, skin, Self::skin_price(skin))
+            .await
+            .map_err(LobbyError::Backend)
+            .map(|_| ())
+    }
+
+    /// Забрать награду квеста дня.
+    pub async fn claim_quest(&self, player_id: u32, index: u8) -> Result<u32, LobbyError> {
+        if index > 2 {
+            return Err(ErrCode::InvalidInput.into());
+        }
+        self.store
+            .quest_claim(player_id, index as usize)
+            .await
+            .map_err(LobbyError::Backend)
+    }
+
+    /// Надеть скин.
+    pub async fn equip_skin(&self, player_id: u32, skin: u8) {
+        self.store.equip_skin(player_id, skin).await;
     }
 
     /// Выбор ульты в лобби: 0 нет, 1 лед, 2 метеорит, 3 магнит.
@@ -780,6 +817,8 @@ mod tests {
             token: format!("tok{id}"),
             xp: 0,
             elo: 1000,
+            skin: 0,
+            skins_owned: vec![0],
         }
     }
 

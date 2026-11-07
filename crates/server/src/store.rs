@@ -22,6 +22,10 @@ pub struct PlayerRecord {
     pub xp: u32,
     /// Рейтинг ELO (старт 1000), сезон = календарный месяц.
     pub elo: i32,
+    /// Надетый скин (каталог в клиенте; 0 = классика).
+    pub skin: u8,
+    /// Купленные скины.
+    pub skins_owned: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -180,6 +184,50 @@ impl Store {
         }
     }
 
+    /// Прогресс квестов дня.
+    #[allow(dead_code)]
+    pub async fn quests_view(&self, player_id: u32) -> (Vec<QuestView>, u32) {
+        match self {
+            Store::Memory(m) => m.quests_view(player_id).await,
+            Store::Mongo(m) => m.quests_view(player_id).await,
+        }
+    }
+
+    /// Обновить прогресс квестов после матча.
+    pub async fn quest_bump(&self, player_id: u32, bricks: u32, win: bool, score: u32) {
+        if player_id >= popproto_core::BOT_ID_BASE {
+            return;
+        }
+        match self {
+            Store::Memory(m) => m.quest_bump(player_id, bricks, win, score).await,
+            Store::Mongo(m) => m.quest_bump(player_id, bricks, win, score).await,
+        }
+    }
+
+    /// Забрать награду квеста.
+    pub async fn quest_claim(&self, player_id: u32, idx: usize) -> Result<u32, String> {
+        match self {
+            Store::Memory(m) => m.quest_claim(player_id, idx).await,
+            Store::Mongo(m) => m.quest_claim(player_id, idx).await,
+        }
+    }
+
+    /// Купить скин за XP. Ok(true) — куплен, Ok(false) — уже есть, Err — не хватает XP.
+    pub async fn buy_skin(&self, player_id: u32, skin: u8, price: u32) -> Result<bool, String> {
+        match self {
+            Store::Memory(m) => m.buy_skin(player_id, skin, price).await,
+            Store::Mongo(m) => m.buy_skin(player_id, skin, price).await,
+        }
+    }
+
+    /// Надеть скин (только из купленных; 0 всегда доступен).
+    pub async fn equip_skin(&self, player_id: u32, skin: u8) {
+        match self {
+            Store::Memory(m) => m.equip_skin(player_id, skin).await,
+            Store::Mongo(m) => m.equip_skin(player_id, skin).await,
+        }
+    }
+
     /// Профиль по нику (для HTTP /api/profile?name=).
     pub async fn profile_by_name(&self, name: &str) -> Option<Profile> {
         let player_id = self.resolve_id_by_name(name).await?;
@@ -220,6 +268,18 @@ pub struct Profile {
     pub xp: u32,
     pub elo: i32,
     pub matches: Vec<MatchRecord>,
+    /// Ежедневные квесты и стрик.
+    pub quests: Vec<QuestView>,
+    pub streak: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct QuestView {
+    pub kind: u8,
+    pub goal: u32,
+    pub prog: u32,
+    pub claimed: bool,
+    pub reward: u32,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -239,6 +299,9 @@ pub struct MemoryStore {
     inner: std::sync::Arc<Mutex<MemoryInner>>,
 }
 
+/// Состояние квестов дня: (дата, прогресс[3], заявки[3], стрик, последний день с матчем).
+type DailyState = (String, [u32; 3], [bool; 3], u32, String);
+
 #[derive(Default)]
 struct MemoryInner {
     players: HashMap<u32, PlayerRecord>,
@@ -249,6 +312,8 @@ struct MemoryInner {
     maps: Vec<MapInfo>,
     /// История матчей по игрокам.
     matches: Vec<(u32, MatchRecord)>,
+    /// Квесты дня: (дата, прогресс[3], заявки[3], стрик, последний день с матчем).
+    daily: HashMap<u32, DailyState>,
     next_id: u32,
 }
 
@@ -287,6 +352,119 @@ impl MemoryStore {
         let mut inner = self.inner.lock().await;
         if let Some(rec) = inner.players.get_mut(&player_id) {
             rec.xp += delta;
+        }
+    }
+
+    fn quests_locked(inner: &mut MemoryInner, player_id: u32) -> (Vec<QuestView>, u32) {
+        let today = crate::lobby::season_now_pub();
+        let entry = inner.daily.entry(player_id).or_insert((
+            today.clone(),
+            [0; 3],
+            [false; 3],
+            0,
+            String::new(),
+        ));
+        if entry.0 != today {
+            *entry = (today.clone(), [0; 3], [false; 3], entry.3, entry.4.clone());
+        }
+        let goals = Self::quest_goals(player_id, &today);
+        let views = goals
+            .iter()
+            .enumerate()
+            .map(|(idx, (kind, goal, reward))| QuestView {
+                kind: *kind,
+                goal: *goal,
+                prog: entry.1[idx].min(*goal),
+                claimed: entry.2[idx],
+                reward: *reward,
+            })
+            .collect();
+        (views, entry.3)
+    }
+
+    /// Цели квестов дня по seed игрока и дате.
+    fn quest_goals(seed: u32, date: &str) -> [(u8, u32, u32); 3] {
+        let seed32 = seed ^ u32::from_le_bytes(date.as_bytes()[..4].try_into().unwrap_or([0; 4]));
+        let h = |n: u32| seed32.wrapping_mul(2654435761).wrapping_add(n) >> 8;
+        [
+            (0u8, 100 + h(1) % 120, 150), // кирпичи
+            (1, 1 + h(2) % 3, 250),       // победы
+            (2, 800 + h(3) % 1200, 300),  // очки за день
+        ]
+    }
+
+    #[allow(dead_code)]
+    async fn quests_view(&self, player_id: u32) -> (Vec<QuestView>, u32) {
+        let mut inner = self.inner.lock().await;
+        Self::quests_locked(&mut inner, player_id)
+    }
+
+    async fn quest_bump(&self, player_id: u32, bricks: u32, win: bool, score: u32) {
+        let mut inner = self.inner.lock().await;
+        let today = crate::lobby::season_now_pub();
+        let entry = inner.daily.entry(player_id).or_insert((
+            today.clone(),
+            [0; 3],
+            [false; 3],
+            0,
+            String::new(),
+        ));
+        if entry.0 != today {
+            *entry = (today.clone(), [0; 3], [false; 3], entry.3, entry.4.clone());
+        }
+        if entry.4 != today {
+            entry.3 += 1; // стрик: любой матч в новый день
+            entry.4 = today.clone();
+        }
+        entry.1[0] = entry.1[0].saturating_add(bricks);
+        if win {
+            entry.1[1] += 1;
+        }
+        entry.1[2] = entry.1[2].saturating_add(score);
+    }
+
+    async fn quest_claim(&self, player_id: u32, idx: usize) -> Result<u32, String> {
+        let mut inner = self.inner.lock().await;
+        let today = crate::lobby::season_now_pub();
+        let entry = inner.daily.get_mut(&player_id).ok_or("нет квестов")?;
+        if entry.0 != today {
+            return Err("квесты обновились".into());
+        }
+        let goals = Self::quest_goals(player_id, &today);
+        let (_kind, goal, reward) = goals[idx];
+        if entry.2[idx] {
+            return Err("уже получено".into());
+        }
+        if entry.1[idx] < goal {
+            return Err("квест не выполнен".into());
+        }
+        entry.2[idx] = true;
+        if let Some(rec) = inner.players.get_mut(&player_id) {
+            rec.xp += reward;
+        }
+        Ok(reward)
+    }
+
+    async fn buy_skin(&self, player_id: u32, skin: u8, price: u32) -> Result<bool, String> {
+        let mut inner = self.inner.lock().await;
+        let rec = inner.players.get_mut(&player_id).ok_or("нет игрока")?;
+        if rec.skins_owned.contains(&skin) {
+            return Ok(false);
+        }
+        if rec.xp < price {
+            return Err("не хватает XP".into());
+        }
+        rec.xp -= price;
+        rec.skins_owned.push(skin);
+        Ok(true)
+    }
+
+    async fn equip_skin(&self, player_id: u32, skin: u8) {
+        let mut inner = self.inner.lock().await;
+        if let Some(rec) = inner.players.get_mut(&player_id) {
+            if skin == 0 || rec.skins_owned.contains(&skin) {
+                rec.skin = skin;
+            }
         }
     }
 
@@ -337,7 +515,8 @@ impl MemoryStore {
     }
 
     async fn profile(&self, player_id: u32) -> Option<Profile> {
-        let inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().await;
+        let (quests, streak) = Self::quests_locked(&mut inner, player_id);
         let rec = inner.players.get(&player_id)?;
         let mut matches: Vec<MatchRecord> = inner
             .matches
@@ -352,6 +531,8 @@ impl MemoryStore {
             xp: rec.xp,
             elo: rec.elo,
             matches,
+            quests,
+            streak,
         })
     }
 
@@ -419,6 +600,8 @@ impl MemoryStore {
             token: token.clone(),
             xp: 0,
             elo: 1000,
+            skin: 0,
+            skins_owned: vec![0],
         };
         inner.players.insert(player_id, rec.clone());
         inner.tokens.insert(token, player_id);
@@ -470,6 +653,185 @@ impl MongoStore {
             maps,
             matches,
         })
+    }
+    fn quest_goals(seed: u32, date: &str) -> [(u8, u32, u32); 3] {
+        let seed32 = seed ^ u32::from_le_bytes(date.as_bytes()[..4].try_into().unwrap_or([0; 4]));
+        let h = |n: u32| seed32.wrapping_mul(2654435761).wrapping_add(n) >> 8;
+        [
+            (0u8, 100 + h(1) % 120, 150),
+            (1, 1 + h(2) % 3, 250),
+            (2, 800 + h(3) % 1200, 300),
+        ]
+    }
+
+    async fn quests_view(&self, player_id: u32) -> (Vec<QuestView>, u32) {
+        let today = crate::lobby::season_now_pub();
+        let d = match self
+            .players
+            .find_one(doc! { "_id": player_id as i64 })
+            .await
+        {
+            Ok(Some(d)) => d,
+            _ => return (vec![], 0),
+        };
+        let daily = d.get_document("daily").ok();
+        let _date = daily.and_then(|x| x.get_str("date").ok()).unwrap_or("");
+        let prog = daily
+            .and_then(|x| x.get_array("prog").ok())
+            .map(|a| {
+                let mut v = [0u32; 3];
+                for (k, item) in a.iter().enumerate().take(3) {
+                    v[k] = item.as_i32().unwrap_or(0) as u32;
+                }
+                v
+            })
+            .unwrap_or([0; 3]);
+        let claimed = daily
+            .and_then(|x| x.get_array("claimed").ok())
+            .map(|a| {
+                let mut v = [false; 3];
+                for (k, item) in a.iter().enumerate().take(3) {
+                    v[k] = item.as_bool().unwrap_or(false);
+                }
+                v
+            })
+            .unwrap_or([false; 3]);
+        let streak = daily.and_then(|x| x.get_i32("streak").ok()).unwrap_or(0) as u32;
+        let goals = Self::quest_goals(player_id, &today);
+        let views = goals
+            .iter()
+            .enumerate()
+            .map(|(idx, (kind, goal, reward))| QuestView {
+                kind: *kind,
+                goal: *goal,
+                prog: prog[idx].min(*goal),
+                claimed: claimed[idx],
+                reward: *reward,
+            })
+            .collect();
+        (views, streak)
+    }
+
+    async fn quest_bump(&self, player_id: u32, bricks: u32, win: bool, score: u32) {
+        let today = crate::lobby::season_now_pub();
+        let _ = self
+            .players
+            .update_one(
+                doc! { "_id": player_id as i64 },
+                doc! {
+                    "$inc": {
+                        "daily.prog.0": bricks as i32,
+                        "daily.prog.2": score as i32,
+                    },
+                    "$set": { "daily.date": &today },
+                    "$max": { "daily.last": &today },
+                },
+            )
+            .await;
+        if win {
+            let _ = self
+                .players
+                .update_one(
+                    doc! { "_id": player_id as i64 },
+                    doc! { "$inc": { "daily.prog.1": 1 } },
+                )
+                .await;
+        }
+        // стрик: если дата последнего матча не сегодня — +1
+        let _ = self
+            .players
+            .update_one(
+                doc! { "_id": player_id as i64, "daily.last": { "$ne": &today } },
+                doc! { "$inc": { "daily.streak": 1 }, "$set": { "daily.last": &today } },
+            )
+            .await;
+    }
+
+    async fn quest_claim(&self, player_id: u32, idx: usize) -> Result<u32, String> {
+        let today = crate::lobby::season_now_pub();
+        let d = self
+            .players
+            .find_one(doc! { "_id": player_id as i64 })
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or("нет игрока")?;
+        let daily = d.get_document("daily").ok();
+        let date_ok = daily.and_then(|x| x.get_str("date").ok()) == Some(today.as_str());
+        if !date_ok {
+            return Err("квесты обновились".into());
+        }
+        let claimed = daily
+            .and_then(|x| x.get_array("claimed").ok())
+            .map(|a| {
+                a.iter()
+                    .enumerate()
+                    .all(|(k, v)| k == idx || v.as_bool().unwrap_or(false))
+            })
+            .unwrap_or(true);
+        let prog = daily
+            .and_then(|x| x.get_array("prog").ok())
+            .and_then(|a| a.get(idx).and_then(|v| v.as_i32()))
+            .unwrap_or(0) as u32;
+        let goals = Self::quest_goals(player_id, &today);
+        let (_kind, goal, reward) = goals[idx];
+        if claimed
+            && daily
+                .and_then(|x| x.get_array("claimed").ok())
+                .and_then(|a| a.get(idx))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+        {
+            return Err("уже получено".into());
+        }
+        if prog < goal {
+            return Err("квест не выполнен".into());
+        }
+        let field = format!("daily.claimed.{idx}");
+        let res = self
+            .players
+            .update_one(
+                doc! { "_id": player_id as i64, &field: false },
+                doc! { "$set": { &field: true }, "$inc": { "xp": reward as i32 } },
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        if res.modified_count == 0 {
+            return Err("уже получено".into());
+        }
+        Ok(reward)
+    }
+
+    async fn buy_skin(&self, player_id: u32, skin: u8, price: u32) -> Result<bool, String> {
+        let owned = self
+            .players
+            .find_one(doc! { "_id": player_id as i64, "skins_owned": skin as i32 })
+            .await
+            .map_err(|e| e.to_string())?;
+        if owned.is_some() {
+            return Ok(false);
+        }
+        let res = self
+            .players
+            .update_one(
+                doc! { "_id": player_id as i64, "xp": { "$gte": price as i32 } },
+                doc! { "$inc": { "xp": -(price as i32) }, "$addToSet": { "skins_owned": skin as i32 } },
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        if res.modified_count == 0 {
+            return Err("не хватает XP".into());
+        }
+        Ok(true)
+    }
+
+    async fn equip_skin(&self, player_id: u32, skin: u8) {
+        let _ = self
+            .players
+            .update_one(
+                doc! { "_id": player_id as i64 },
+                doc! { "$set": { "skin": skin as i32 } },
+            )
+            .await;
     }
 
     async fn match_result(
@@ -557,11 +919,14 @@ impl MongoStore {
                 });
             }
         }
+        let (quests, streak) = self.quests_view(player_id).await;
         Some(Profile {
             name: d.get_str("name").unwrap_or("?").into(),
             xp: get_u32(&d, "xp").unwrap_or(0),
             elo: get_i32(&d, "elo").unwrap_or(1000),
             matches,
+            quests,
+            streak,
         })
     }
 
@@ -722,6 +1087,15 @@ impl MongoStore {
                 token: token.to_string(),
                 xp,
                 elo: get_i32(&player, "elo").unwrap_or(1000),
+                skin: get_u32(&player, "skin").unwrap_or(0) as u8,
+                skins_owned: player
+                    .get_array("skins_owned")
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_i32().map(|x| x as u8))
+                            .collect()
+                    })
+                    .unwrap_or_else(|_| vec![0]),
             });
         }
 
@@ -737,6 +1111,8 @@ impl MongoStore {
             token,
             xp: 0,
             elo: 1000,
+            skin: 0,
+            skins_owned: vec![0],
         };
         self.insert_player(&rec).await?;
         Ok(rec)
@@ -829,6 +1205,23 @@ mod tests {
         let top = store.elo_top(10).await;
         assert_eq!(top.len(), 1);
         assert_eq!(top[0].elo, 1000);
+    }
+
+    #[tokio::test]
+    async fn skins_buy_equip_flow() {
+        let store = Store::Memory(MemoryStore::new());
+        let rec = store.resolve_player("СкинТест", None).await.unwrap();
+        // XP не хватает
+        assert!(store.buy_skin(rec.player_id, 1, 500).await.is_err());
+        // даём XP и покупаем
+        store.add_xp(rec.player_id, 600).await;
+        assert!(store.buy_skin(rec.player_id, 1, 500).await.unwrap());
+        // повторная покупка — false
+        assert!(!store.buy_skin(rec.player_id, 1, 500).await.unwrap());
+        store.equip_skin(rec.player_id, 1).await;
+        let prof = store.profile(rec.player_id).await.unwrap();
+        assert_eq!(prof.xp, 100); // 600 - 500
+        store.equip_skin(rec.player_id, 1).await;
     }
 
     #[test]

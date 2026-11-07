@@ -65,6 +65,9 @@ const mPing = (n) => new W().u32(12).u64(n).bytes();
 const mAddBot = (level) => new W().u32(13).u32(level).bytes();
 const mRemoveBot = (id) => new W().u32(14).u32(id).bytes();
 const mSetColor = (color) => new W().u32(15).u8(color).bytes();
+const mBuySkin = (skin) => new W().u32(20).u8(skin).bytes();
+const mClaimQuest = (index) => new W().u32(22).u8(index).bytes();
+const mEquipSkin = (skin) => new W().u32(21).u8(skin).bytes();
 const mPublishMap = (name, rows) => { const w = new W().u32(18).str(name).u64(rows.length); rows.forEach((rr) => w.str(rr)); return w.bytes(); };
 const mSetUlt = (ult) => new W().u32(16).u8(ult).bytes();
 const mUseUlt = () => new W().u32(17).bytes();
@@ -99,7 +102,7 @@ function readPlayerInfo(r) {
   return {
     id: r.u32(), name: r.str(), ready: !!r.u8(), is_bot: !!r.u8(),
     bot_level: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(),
-    online: !!r.u8(), ult: r.u8(),
+    online: !!r.u8(), ult: r.u8(), skin: r.u8(),
   };
 }
 
@@ -137,4 +140,4 @@ function readSnapshot(r) {
   return { t: "Snapshot", tick, field_w, field_h, phase, level, players, balls, bricks_upsert, bricks_removed, capsules, bullets, events, boss, combo, scores, fx, projs };
 }
 
-window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, mSetUlt, mUseUlt, mPublishMap, decode };
+window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, mSetUlt, mUseUlt, mPublishMap, mBuySkin, mEquipSkin, mClaimQuest, decode };

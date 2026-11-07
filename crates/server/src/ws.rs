@@ -363,6 +363,29 @@ async fn dispatch(
                 .await
                 .map_err(lobby)?
         }
+        ClientMsg::BuySkin { skin } => {
+            state
+                .lobby
+                .buy_skin(record.player_id, skin)
+                .await
+                .map_err(lobby)?;
+        }
+        ClientMsg::EquipSkin { skin } => {
+            state.lobby.equip_skin(record.player_id, skin).await;
+        }
+        ClientMsg::ClaimQuest { index } => {
+            let reward = state
+                .lobby
+                .claim_quest(record.player_id, index)
+                .await
+                .map_err(lobby)?;
+            direct_tx
+                .send(ServerMsg::Error {
+                    code: ErrCode::InvalidInput,
+                    text: format!("🎁 +{reward} XP за квест!"),
+                })
+                .map_err(choked)?;
+        }
         ClientMsg::PublishMap { name, rows } => {
             let name = name.trim().to_string();
             if name.is_empty() || name.chars().count() > 24 {
