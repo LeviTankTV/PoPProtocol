@@ -97,7 +97,8 @@ impl Store {
         }
     }
 
-    /// Отметка сыгранной партии на карте.
+    /// Отметка сыгранной партии на карте (резерв: id карты в настройках комнаты).
+    #[allow(dead_code)]
     pub async fn map_plays_inc(&self, map_id: u32) {
         match self {
             Store::Memory(m) => m.map_plays_inc(map_id).await,
@@ -360,6 +361,7 @@ impl MongoStore {
         out
     }
 
+    #[allow(dead_code)]
     async fn map_plays_inc(&self, map_id: u32) {
         let _ = self
             .maps

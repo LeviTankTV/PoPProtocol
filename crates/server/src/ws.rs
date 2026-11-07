@@ -366,7 +366,7 @@ async fn dispatch(
         ClientMsg::PublishMap { name, rows } => {
             let name = name.trim().to_string();
             if name.is_empty() || name.chars().count() > 24 {
-                return Err((ErrCode::BadName, "имя карты: 1-24 символов".into()).into());
+                return Err((ErrCode::BadName, "имя карты: 1-24 символов".into()));
             }
             let mut clean: Vec<String> = rows
                 .into_iter()

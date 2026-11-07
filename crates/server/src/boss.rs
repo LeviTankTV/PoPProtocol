@@ -551,7 +551,7 @@ mod tests {
     fn mirror_shield_kicks_ball_down() {
         let mut b = Boss::new(5, 2, 800.0);
         assert_eq!(b.shields.len(), 2);
-        let mut f = Field::new(800.0, 600.0, 0);
+        let _f = Field::new(800.0, 600.0, 0);
         let mut ball = popproto_core::field::Ball {
             id: 1,
             owner: 1,
