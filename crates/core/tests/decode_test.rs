@@ -1,25 +1,23 @@
-use popproto_core::{decode, encode, ClientMsg};
+use popproto_core::{decode, ClientMsg};
 #[test]
-fn decode_load_hello_bytes() {
-    let name = "load-0";
-    let mut b: Vec<u8> = vec![0, 0, 0, 0, 6, 0];
-    b.extend_from_slice(&6u64.to_le_bytes());
-    b.extend_from_slice(name.as_bytes());
-    b.push(0);
-    let msg = decode::<ClientMsg>(&b);
-    match msg {
-        Some(ClientMsg::Hello {
-            protocol,
+fn decode_browser_create() {
+    let b: Vec<u8> = vec![
+        2, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 208, 164, 208, 184, 208, 189, 208, 176, 208, 187, 53,
+        0, 0, 0, 0, 0, 10, 1, 1, 0, 0, 128, 63, 0,
+    ];
+    match decode::<ClientMsg>(&b) {
+        Some(ClientMsg::CreateRoom {
             name,
-            token,
-        }) => println!("OK proto={protocol} name={name} token={token:?}"),
-        other => panic!("decoded into: {other:?}"),
+            password: _,
+            mode,
+            settings,
+        }) => {
+            println!(
+                "OK name={name} mode={mode:?} max={} custom={:?}",
+                settings.max_players,
+                settings.custom_rows.is_some()
+            );
+        }
+        other => panic!("decoded: {other:?}"),
     }
-    // контроль: серверный encode
-    let ref_msg = ClientMsg::Hello {
-        protocol: 6,
-        name: "load-0".into(),
-        token: None,
-    };
-    println!("server encode: {:?}", encode(&ref_msg));
 }

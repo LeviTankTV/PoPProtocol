@@ -12,7 +12,7 @@ use popproto_core::{
     BotLevel, ErrCode, GameMode, MapInfo, PlayerInfo, RoomPhase, RoomSettings, RoomState,
     RoomSummary, ServerMsg, BOT_ID_BASE, MAX_PLAYERS, MAX_SPECTATORS, RECONNECT_WINDOW_SECS,
 };
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc};
 
 use crate::game::{self, GameCmd};
 use crate::store::{PlayerRecord, Store};
@@ -172,7 +172,7 @@ type ReplayRing = Vec<(popproto_core::ReplayMeta, Vec<Vec<u8>>)>;
 
 #[derive(Clone)]
 pub struct Lobby {
-    inner: Arc<Mutex<Inner>>,
+    inner: Arc<std::sync::Mutex<Inner>>,
     /// Хранилище для начисления XP по итогам матчей.
     store: Arc<Store>,
     /// Последние реплеи матчей (кольцо на 10 матчей).
@@ -184,7 +184,8 @@ impl Lobby {
     /// Имя комнаты (для реплеев).
     pub fn room_name(&self, room_id: u32) -> Option<String> {
         self.inner
-            .blocking_lock()
+            .lock()
+            .unwrap()
             .rooms
             .get(&room_id)
             .map(|r| r.name.clone())
@@ -239,7 +240,7 @@ impl Lobby {
 
     pub fn new(store: Arc<Store>) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(Inner::default())),
+            inner: Arc::new(std::sync::Mutex::new(Inner::default())),
             store,
             replays: Arc::new(std::sync::Mutex::new(Vec::new())),
             replay_seq: Arc::new(std::sync::atomic::AtomicU32::new(0)),
@@ -250,7 +251,7 @@ impl Lobby {
     pub async fn subscribe(&self, room_id: u32) -> Option<broadcast::Receiver<ServerMsg>> {
         self.inner
             .lock()
-            .await
+            .unwrap()
             .rooms
             .get(&room_id)
             .map(|r| r.tx.subscribe())
@@ -258,11 +259,11 @@ impl Lobby {
 
     #[allow(dead_code)] // зарезервировано: REST-проверки
     pub async fn room_exists(&self, room_id: u32) -> bool {
-        self.inner.lock().await.rooms.contains_key(&room_id)
+        self.inner.lock().unwrap().rooms.contains_key(&room_id)
     }
 
     pub async fn room_list(&self) -> Vec<RoomSummary> {
-        let inner = self.inner.lock().await;
+        let inner = self.inner.lock().unwrap();
         let mut list: Vec<RoomSummary> = inner.rooms.values().map(|r| r.summary()).collect();
         list.sort_by_key(|s| s.room_id);
         list
@@ -282,7 +283,7 @@ impl Lobby {
         }
         settings.max_players = settings.max_players.clamp(1, MAX_PLAYERS as u8);
 
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let id = inner.next_room_id;
         inner.next_room_id += 1;
 
@@ -318,7 +319,7 @@ impl Lobby {
     pub async fn room_state(&self, room_id: u32) -> Option<RoomState> {
         self.inner
             .lock()
-            .await
+            .unwrap()
             .rooms
             .get(&room_id)
             .map(|r| r.state())
@@ -326,7 +327,7 @@ impl Lobby {
 
     /// Отправить сообщение в канал комнаты без изменения состояния (чат, эмоции).
     pub async fn broadcast_raw(&self, room_id: u32, msg: ServerMsg) -> Result<(), LobbyError> {
-        let inner = self.inner.lock().await;
+        let inner = self.inner.lock().unwrap();
         let room = inner.rooms.get(&room_id).ok_or(ErrCode::RoomNotFound)?;
         room.broadcast(msg);
         Ok(())
@@ -334,7 +335,7 @@ impl Lobby {
 
     /// Передать команду матчу (PaddleX/Action). false — матча нет.
     pub async fn game_cmd(&self, room_id: u32, cmd: GameCmd) -> bool {
-        let inner = self.inner.lock().await;
+        let inner = self.inner.lock().unwrap();
         inner
             .games
             .get(&room_id)
@@ -344,7 +345,7 @@ impl Lobby {
 
     /// Обрыв соединения: игрок остаётся в слоте на окно реконнекта.
     pub async fn player_disconnected(&self, player_id: u32, room_id: u32) -> bool {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let Some(room) = inner.rooms.get_mut(&room_id) else {
             return false;
         };
@@ -374,7 +375,7 @@ impl Lobby {
     /// Убрать игроков, не вернувшихся за окно реконнекта. Вызывается фоновым свипером.
     pub async fn sweep_reconnects(&self) {
         let expired: Vec<(u32, u32)> = {
-            let inner = self.inner.lock().await;
+            let inner = self.inner.lock().unwrap();
             inner
                 .rooms
                 .iter()
@@ -409,7 +410,7 @@ impl Lobby {
         room_id: u32,
         level: BotLevel,
     ) -> Result<(), LobbyError> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         if room.host_id != host_id {
             return Err(ErrCode::NotHost.into());
@@ -455,7 +456,7 @@ impl Lobby {
         room_id: u32,
         target: u32,
     ) -> Result<(), LobbyError> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         if room.host_id != host_id {
             return Err(ErrCode::NotHost.into());
@@ -473,8 +474,13 @@ impl Lobby {
     }
 
     /// Хост запускает турнир: перемешивает игроков и строит первый раунд.
-    pub async fn start_tournament(&self, host_id: u32, room_id: u32) -> Result<(), LobbyError> {
-        let mut inner = self.inner.lock().await;
+    pub async fn start_tournament(
+        &self,
+        host_id: u32,
+        room_id: u32,
+    ) -> Result<(u32, u32), LobbyError> {
+        tracing::info!("старт турнира: room={room_id} host={host_id}");
+        let mut inner = self.inner.lock().unwrap();
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         if room.host_id != host_id {
             return Err(ErrCode::NotHost.into());
@@ -527,14 +533,18 @@ impl Lobby {
         });
         let duel = room.tournament.as_ref().unwrap().rounds[0][0].clone();
         let _ = inner.games.remove(&room_id);
-        self.spawn_duel(room_id, duel.a, duel.b).await;
-        Ok(())
+        drop(inner);
+        Ok((duel.a, duel.b))
     }
 
     /// Запустить дуёл двух игроков турнира.
+    pub async fn spawn_duel_pub(&self, room_id: u32, a: u32, b: u32) {
+        self.spawn_duel(room_id, a, b).await;
+    }
+
     async fn spawn_duel(&self, room_id: u32, a: u32, b: u32) {
         let roster: Vec<(u32, String, Option<BotLevel>, u8)> = {
-            let mut inner = self.inner.lock().await;
+            let mut inner = self.inner.lock().unwrap();
             let Some(room) = inner.rooms.get_mut(&room_id) else {
                 return;
             };
@@ -561,7 +571,7 @@ impl Lobby {
             GameMode::Coop,
             None,
         );
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         inner.games.insert(room_id, cmd_tx);
         if let Some(r) = inner.rooms.get(&room_id) {
             r.broadcast_state();
@@ -572,7 +582,7 @@ impl Lobby {
     async fn tournament_advance(&self, room_id: u32, scores: Vec<(u32, u32)>) {
         let next: Option<(u32, u32)>;
         {
-            let mut inner = self.inner.lock().await;
+            let mut inner = self.inner.lock().unwrap();
             let Some(room) = inner.rooms.get_mut(&room_id) else {
                 return;
             };
@@ -638,8 +648,10 @@ impl Lobby {
 
     /// Матч завершён: снять фазу Playing, сбросить готовность, начислить XP.
     pub async fn finish_match(&self, room_id: u32, scores: Vec<(u32, u32)>) {
+        #[allow(unused_assignments)]
+        let mut tourn_flag = false;
         {
-            let mut inner = self.inner.lock().await;
+            let mut inner = self.inner.lock().unwrap();
             inner.games.remove(&room_id);
             let Some(room) = inner.rooms.get_mut(&room_id) else {
                 return;
@@ -653,12 +665,14 @@ impl Lobby {
                 }
             }
             MATCHES_TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            tourn_flag = room.tournament.is_some();
             tracing::info!("комната #{room_id}: матч завершён");
             room.broadcast_state();
-            if room.tournament.is_some() {
-                self.tournament_advance(room_id, scores).await;
-                return;
-            }
+        }
+        // турнир: следующий дуёл (после снятия лобби-лока — иначе дедлок)
+        if tourn_flag {
+            self.tournament_advance(room_id, scores).await;
+            return;
         }
         // XP в хранилище: очки/10, минимум 1 за матч с очками
         for (player_id, score) in &scores {
@@ -697,7 +711,7 @@ impl Lobby {
         code: &str,
         password: Option<&str>,
     ) -> Result<Joined, LobbyError> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let room = inner
             .rooms
             .values_mut()
@@ -871,7 +885,7 @@ impl Lobby {
         if ult > 3 {
             return Err(ErrCode::NotAllowed.into());
         }
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         if room.phase != RoomPhase::Lobby {
             return Err(ErrCode::NotAllowed.into());
@@ -893,7 +907,7 @@ impl Lobby {
         room_id: u32,
         color: u8,
     ) -> Result<(), LobbyError> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let Some(room) = inner.rooms.get_mut(&room_id) else {
             return Err(LobbyError::Code(ErrCode::NotAllowed));
         };
@@ -934,7 +948,7 @@ impl Lobby {
     }
 
     pub async fn leave_room(&self, player_id: u32, room_id: u32) -> bool {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         // Матч узнаёт об уходе игрока (уберёт ракетку и мячи).
         if let Some(tx) = inner.games.get(&room_id) {
             let _ = tx.send(GameCmd::PlayerLeft { player_id });
@@ -968,7 +982,7 @@ impl Lobby {
         room_id: u32,
         ready: bool,
     ) -> Result<(), LobbyError> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         let Some(seat) = room.players.iter_mut().find(|p| p.id == player_id) else {
             return Err(ErrCode::NotAllowed.into());
@@ -979,7 +993,7 @@ impl Lobby {
     }
 
     pub async fn start_match(&self, player_id: u32, room_id: u32) -> Result<(), LobbyError> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         if room.host_id != player_id {
             return Err(ErrCode::NotHost.into());
@@ -1023,7 +1037,7 @@ impl Lobby {
     }
 
     pub async fn kick(&self, host_id: u32, room_id: u32, target: u32) -> Result<(), LobbyError> {
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().unwrap();
         let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
         if room.host_id != host_id {
             return Err(ErrCode::NotHost.into());
@@ -1040,7 +1054,7 @@ impl Lobby {
     /// Живёт ли игрок в указанной комнате (для очистки при разрыве соединения).
     #[allow(dead_code)] // зарезервировано: REST-эндпоинты комнаты
     pub async fn member_room(&self, player_id: u32) -> Option<u32> {
-        let inner = self.inner.lock().await;
+        let inner = self.inner.lock().unwrap();
         inner
             .rooms
             .values()
@@ -1367,7 +1381,7 @@ mod tests {
 
         // вручную протухаем дедлайн
         {
-            let mut inner = lobby.inner.lock().await;
+            let mut inner = lobby.inner.lock().unwrap();
             let room = inner.rooms.get_mut(&room_id).unwrap();
             room.reconnects
                 .insert(2, Instant::now() - Duration::from_secs(1));

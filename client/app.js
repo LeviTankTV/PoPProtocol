@@ -214,7 +214,7 @@ function handle(m) {
       break;
     }
     case "ReplayData":
-      startReplayPlayer(m.meta, m.frames);
+      if (window.__startReplayPlayer) window.__startReplayPlayer(m.meta, m.frames);
       break;
     case "Error":
       toast("⚠ " + m.text);
@@ -1368,7 +1368,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     const name = document.getElementById("room-name").value.trim() || "Комната";
     const pass = document.getElementById("room-pass").value.trim();
     const mode = +document.getElementById("room-mode").value;
-    send(P.mCreateRoom(name, pass || null, mode, { max_players: 10, events_enabled: true, bosses_enabled: true, speed_factor: 1.0 }));
+    send(P.mCreateRoom(name, pass || null, mode, { max_players: 10, events_enabled: true, bosses_enabled: true, speed_factor: 1.0, custom_rows: null }));
   };
   document.getElementById("btn-refresh").onclick = () => send(P.mRoomList());
 
@@ -1586,6 +1586,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
   window.__loadReplays = loadReplays;
 
+  window.__startReplayPlayer = startReplayPlayer;
   function startReplayPlayer(meta, frames) {
     // декодируем все кадры в снапшоты
     const snaps = frames.map((f) => P.decode(f)).filter((x) => x && x.t === "Snapshot");

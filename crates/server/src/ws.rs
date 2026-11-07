@@ -388,11 +388,12 @@ async fn dispatch(
         }
         ClientMsg::StartTournament => {
             let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
-            state
+            let (a, b) = state
                 .lobby
                 .start_tournament(record.player_id, rid)
                 .await
                 .map_err(lobby)?;
+            state.lobby.spawn_duel_pub(rid, a, b).await;
         }
         ClientMsg::GetReplays => {
             direct_tx

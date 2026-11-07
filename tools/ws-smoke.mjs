@@ -14,7 +14,7 @@ const enc = {
   hello: (name, token) => Buffer.concat([u32(0), u16(6), str(name), opt(token ? str(token) : null)]),
   addBot: (level) => Buffer.concat([u32(13), u32(level)]),
   removeBot: (id) => Buffer.concat([u32(14), u32(id)]),
-  createRoom: (name, pass) => Buffer.concat([u32(2), str(name), opt(pass ? str(pass) : null), u32(0), Buffer.from([10, 1, 1]), f32(1.0)]),
+  createRoom: (name, pass) => Buffer.concat([u32(2), str(name), opt(pass ? str(pass) : null), u32(0), Buffer.from([10, 1, 1]), f32(1.0), Buffer.from([0])]),
   joinRoom: (code, pass) => Buffer.concat([u32(3), str(code), opt(pass ? str(pass) : null)]),
   paddleX: (x) => Buffer.concat([u32(8), f32(x)]),
   action: () => u32(9),
@@ -72,14 +72,26 @@ function decode(buf) {
       return { t: "RoomList", list };
     }
     case 4: {
-      const room_id = r.u32(); const code = r.str(); const name = r.str(); const mode = r.u32();
+      const room_id = r.u32();
+      if (r.u8() === 1) {
+        const nR = r.u64();
+        for (let tI = 0; tI < nR; tI++) {
+          const nD = r.u64();
+          for (let dI = 0; dI < nD; dI++) { r.u32(); r.u32(); if (r.u8() === 1) r.u32(); }
+        }
+        if (r.u8() === 1) { r.u32(); r.u32(); }
+        if (r.u8() === 1) r.u32();
+      }
+      const code = r.str(); const name = r.str(); const mode = r.u32();
       r.u8(); r.u8(); r.u8(); r.f32(); // settings
+      if (r.u8() === 1) { const nMR = r.u64(); for (let mI = 0; mI < nMR; mI++) r.str(); }
       const host_id = r.u32(); const phase = r.u32();
+      const readP = () => ({ id: r.u32(), name: r.str(), ready: r.u8(), is_bot: r.u8(), bot: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(), online: r.u8(), ult: r.u8(), skin: r.u8() });
       const players = r.u64(); const pl = [];
-      for (let k = 0; k < players; k++) pl.push({ id: r.u32(), name: r.str(), ready: r.u8(), is_bot: r.u8(), bot: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(), online: r.u8() });
+      for (let k = 0; k < players; k++) pl.push(readP());
       const specs = r.u64();
       const sp = [];
-      for (let k = 0; k < specs; k++) sp.push({ id: r.u32(), name: r.str(), ready: r.u8(), is_bot: r.u8(), bot: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(), online: r.u8() });
+      for (let k = 0; k < specs; k++) sp.push(readP());
       return { t: "RoomState", room_id, code, name, mode, host_id, phase, players: pl, spectators: sp };
     }
     case 5: return { t: "MatchStarted" };
