@@ -386,6 +386,35 @@ async fn dispatch(
                 })
                 .map_err(choked)?;
         }
+        ClientMsg::StartTournament => {
+            let rid = room_id.ok_or_else(|| (ErrCode::NotAllowed, "вы не в комнате".into()))?;
+            state
+                .lobby
+                .start_tournament(record.player_id, rid)
+                .await
+                .map_err(lobby)?;
+        }
+        ClientMsg::GetReplays => {
+            direct_tx
+                .send(ServerMsg::ReplayList {
+                    items: state.lobby.replay_list(),
+                })
+                .map_err(choked)?;
+        }
+        ClientMsg::GetReplay { id } => {
+            if let Some((meta, frames)) = state.lobby.replay_data(id) {
+                direct_tx
+                    .send(ServerMsg::ReplayData { meta, frames })
+                    .map_err(choked)?;
+            } else {
+                direct_tx
+                    .send(ServerMsg::Error {
+                        code: ErrCode::RoomNotFound,
+                        text: "реплей не найден".into(),
+                    })
+                    .map_err(choked)?;
+            }
+        }
         ClientMsg::ClanCreate { tag, name } => {
             let tag = tag.trim().to_uppercase();
             if tag.len() < 2 || tag.len() > 4 || !tag.chars().all(|c| c.is_ascii_alphanumeric()) {

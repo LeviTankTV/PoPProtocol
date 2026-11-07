@@ -23,6 +23,7 @@ class R {
   f32() { const v = this.dv.getFloat32(this.i, true); this.i += 4; return v; }
   str() { const n = this.u64(); const s = new TextDecoder().decode(new Uint8Array(this.dv.buffer, this.dv.byteOffset + this.i, n)); this.i += n; return s; }
   opt(fn) { const t = this.u8(); return t ? fn() : null; }
+  bin() { const n = this.u64(); const out = new Uint8Array(n); out.set(new Uint8Array(this.dv.buffer, this.dv.byteOffset + this.i, n)); this.i += n; return out; }
   vec(fn) { const n = this.u64(); const out = []; for (let k = 0; k < n; k++) out.push(fn()); return out; }
 }
 
@@ -70,6 +71,9 @@ const mClaimQuest = (index) => new W().u32(22).u8(index).bytes();
 const mClanCreate = (tag, name) => new W().u32(23).str(tag).str(name).bytes();
 const mClanJoin = (tag) => new W().u32(24).str(tag).bytes();
 const mClanLeave = () => new W().u32(25).bytes();
+const mGetReplays = () => new W().u32(26).bytes();
+const mGetReplay = (id) => new W().u32(27).u32(id).bytes();
+const mStartTournament = () => new W().u32(28).bytes();
 const mEquipSkin = (skin) => new W().u32(21).u8(skin).bytes();
 const mPublishMap = (name, rows) => { const w = new W().u32(18).str(name).u64(rows.length); rows.forEach((rr) => w.str(rr)); return w.bytes(); };
 const mSetUlt = (ult) => new W().u32(16).u8(ult).bytes();
@@ -97,6 +101,8 @@ function decode(buf) {
     case 13: return { t: "PlayerJoined", ...readPlayerInfo(r) };
     case 14: return { t: "PlayerLeft", player_id: r.u32() };
     case 15: return { t: "HostChanged", player_id: r.u32() };
+    case 16: return { t: "ReplayList", items: r.vec(() => ({ id: r.u32(), name: r.str(), level: r.u32(), ts: r.u64(), frames: r.u32() })) };
+    case 17: return { t: "ReplayData", meta: { id: r.u32(), name: r.str(), level: r.u32(), ts: r.u64(), frames: r.u32() }, frames: r.vec(() => r.bin()) };
     default: return { t: "Unknown" };
   }
 }
@@ -109,8 +115,23 @@ function readPlayerInfo(r) {
   };
 }
 
+function readTournament(r) {
+  const rounds = r.vec(() => r.vec(() => {
+    const a = r.u32(), b = r.u32();
+    const winner = r.u8() === 1 ? r.u32() : null;
+    return { a, b, winner };
+  }));
+  let current = null;
+  if (r.u8() === 1) current = { a: r.u32(), b: r.u32() };
+  let champion = null;
+  if (r.u8() === 1) champion = r.u32();
+  return { rounds, current, champion };
+}
+
 function readRoomState(r) {
-  const room_id = r.u32(), code = r.str(), name = r.str(), mode = r.u32();
+  const room_id = r.u32();
+  const tournament = r.u8() === 1 ? readTournament(r) : null;
+  const code = r.str(), name = r.str(), mode = r.u32();
   const settings = { max_players: r.u8(), events_enabled: !!r.u8(), bosses_enabled: !!r.u8(), speed_factor: r.f32() };
   settings.custom_rows = null;
   if (r.u8() === 1) {
@@ -121,7 +142,7 @@ function readRoomState(r) {
   const host_id = r.u32(), phase = r.u32();
   const players = r.vec(() => readPlayerInfo(r));
   const spectators = r.vec(() => readPlayerInfo(r));
-  return { room_id, code, name, mode, settings, host_id, phase, players, spectators };
+  return { room_id, tournament, code, name, mode, settings, host_id, phase, players, spectators };
 }
 
 function readSnapshot(r) {
@@ -143,4 +164,4 @@ function readSnapshot(r) {
   return { t: "Snapshot", tick, field_w, field_h, phase, level, players, balls, bricks_upsert, bricks_removed, capsules, bullets, events, boss, combo, scores, fx, projs };
 }
 
-window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, mSetUlt, mUseUlt, mPublishMap, mBuySkin, mEquipSkin, mClaimQuest, mClanCreate, mClanJoin, mClanLeave, decode };
+window.PopProto = { PROTOCOL_VERSION, mHello, mRoomList, mCreateRoom, mJoinRoom, mLeave, mReady, mStart, mKick, mPaddleX, mAction, mChat, mEmote, mPing, mAddBot, mRemoveBot, mSetColor, mSetUlt, mUseUlt, mPublishMap, mBuySkin, mEquipSkin, mClaimQuest, mClanCreate, mClanJoin, mClanLeave, mGetReplays, mGetReplay, mStartTournament, decode };

@@ -1343,7 +1343,7 @@ impl Game {
     /// Снапшот текущего состояния с диффом кирпичей.
     /// Раз в 3 секунды шлём сетку целиком: реконнекты и редкие потери пакетов
     /// самолечатся, вместо отдельного протокола «запроси полный снап».
-    pub fn snapshot(&mut self) -> Snapshot {
+    fn snapshot(&mut self) -> Snapshot {
         if self.tick.is_multiple_of(TICK_HZ * 3) {
             self.sent_bricks.clear();
         }
@@ -1514,6 +1514,9 @@ pub fn spawn(
         if let Some(rows) = &custom_rows {
             game.field.load_rows(rows);
         }
+        // запись реплея: закодированные Snapshot-кадры (кольцо на 3 минуты)
+        let mut replay_frames: Vec<Vec<u8>> = vec![];
+        let _replay_name = String::new();
         let mut interval =
             tokio::time::interval(std::time::Duration::from_millis(1000 / TICK_HZ as u64));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -1524,6 +1527,14 @@ pub fn spawn(
             }
             let mut msgs = game.tick(1.0 / TICK_HZ as f32);
             let snap = game.snapshot();
+            // реплей: кадр снапшота (кольцо ~3 минуты)
+            replay_frames.push(popproto_core::encode(&ServerMsg::Snapshot(Box::new(
+                snap.clone(),
+            ))));
+            if replay_frames.len() > 5400 {
+                replay_frames.remove(0);
+            }
+            let replay_level = snap.level;
             let final_scores: Vec<(u32, u32)> = snap
                 .scores
                 .iter()
@@ -1536,6 +1547,9 @@ pub fn spawn(
                 }
             }
             if game.phase == MatchPhase::Over || game.phase == MatchPhase::Win {
+                // сохранить реплей (имя комнаты берём из лобби)
+                let name = lobby.room_name(room_id).unwrap_or_else(|| "Матч".into());
+                lobby.save_replay(&name, replay_level, std::mem::take(&mut replay_frames));
                 lobby.finish_match(room_id, final_scores).await;
                 return;
             }

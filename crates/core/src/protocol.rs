@@ -93,6 +93,8 @@ pub enum ClientMsg {
     ClaimQuest {
         index: u8,
     },
+    /// Только хост: запустить турнирную сетку среди готовых игроков.
+    StartTournament,
     /// Создать клан (создатель автоматически становится участником).
     ClanCreate {
         tag: String,
@@ -104,6 +106,12 @@ pub enum ClientMsg {
     },
     /// Покинуть клан.
     ClanLeave,
+    /// Список последних реплеев.
+    GetReplays,
+    /// Загрузить реплей по id.
+    GetReplay {
+        id: u32,
+    },
 }
 
 /* ---------- сервер -> клиент ---------- */
@@ -158,6 +166,42 @@ pub enum ServerMsg {
     HostChanged {
         player_id: u32,
     },
+    /// Список реплеев.
+    ReplayList {
+        items: Vec<ReplayMeta>,
+    },
+    /// Данные реплея: поток закодированных Snapshot-сообщений.
+    ReplayData {
+        meta: ReplayMeta,
+        frames: Vec<Vec<u8>>,
+    },
+}
+
+/// Один дуёл турнира: игроки и победитель (None — не сыгран).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TDuel {
+    pub a: u32,
+    pub b: u32,
+    pub winner: Option<u32>,
+}
+
+/// Состояние турнира в комнате.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TournamentInfo {
+    pub rounds: Vec<Vec<TDuel>>,
+    /// Текущий дуёл (идёт матч).
+    pub current: Option<(u32, u32)>,
+    pub champion: Option<u32>,
+}
+
+/// Метаданные реплея.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReplayMeta {
+    pub id: u32,
+    pub name: String,
+    pub level: u32,
+    pub ts: i64,
+    pub frames: u32,
 }
 
 /* ---------- лобби и комнаты ---------- */
@@ -213,6 +257,8 @@ pub struct RoomSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoomState {
     pub room_id: u32,
+    /// Турнирная сетка (None — обычная комната).
+    pub tournament: Option<TournamentInfo>,
     pub code: String,
     pub name: String,
     pub mode: GameMode,
@@ -642,6 +688,7 @@ mod tests {
     fn room_state_roundtrip() {
         let state = RoomState {
             room_id: 1,
+            tournament: None,
             code: "482913".into(),
             name: "Комната друзей".into(),
             mode: GameMode::Coop,

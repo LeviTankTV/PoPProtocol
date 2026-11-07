@@ -39,7 +39,17 @@ function readPI(r) {
   return { id: r.u32(), name: r.str(), ready: !!r.u8(), is_bot: !!r.u8(), bot: r.opt(() => r.u32()), score: r.u32(), lives: r.u8(), color: r.u8(), xp: r.u32(), online: !!r.u8(), ult: r.u8(), skin: r.u8() };
 }
 function readRoomState(r) {
-  const room_id = r.u32(), code = r.str(), name = r.str(), mode = r.u32();
+  const room_id = r.u32();
+  if (r.u8() === 1) {
+    const nR = r.u64();
+    for (let tI = 0; tI < nR; tI++) {
+      const nD = r.u64();
+      for (let dI = 0; dI < nD; dI++) { r.u32(); r.u32(); if (r.u8() === 1) r.u32(); }
+    }
+    if (r.u8() === 1) { r.u32(); r.u32(); }
+    if (r.u8() === 1) r.u32();
+  }
+  const code = r.str(), name = r.str(), mode = r.u32();
   r.u8(); r.u8(); r.u8(); r.f32(); // settings
   if (r.u8() === 1) { const nMR = r.u64(); for (let mI = 0; mI < nMR; mI++) r.str(); }
   const host_id = r.u32(), phase = r.u32();

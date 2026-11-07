@@ -151,6 +151,8 @@
   .card-clan{ background:linear-gradient(135deg,#eef0ff,#e3f4ff); }
   .clan-row{ display:flex; gap:8px; align-items:center; background:#fff; border:2px solid #cfc6e8; border-radius:12px; padding:5px 8px; font-size:.9rem; }
   .clan-row b:first-child{ color:#5f27cd; }
+  .card-replays{ background:linear-gradient(135deg,#ffeef0,#fff0d9); }
+  .card-rooms #bracket{ max-height:220px; }
   @media (max-width: 720px) {
     h1 { font-size: 1.6rem; }
     .menu-row { flex-wrap: wrap; }
@@ -214,7 +216,11 @@
         </div>
         <div id="rooms"></div>
       </section>
-                      <section class="menu-card card-clan">
+                          <section class="menu-card card-replays">
+      <h3 data-i18n="rpTitle">🎬 Реплеи</h3>
+      <div id="replays-list" class="maps-list"></div>
+    </section>
+<section class="menu-card card-clan">
       <h3 data-i18n="clanTitle">🛡 Клан</h3>
       <div id="clan-mine" class="maps-list"></div>
       <div class="join-row" id="clan-create-row" style="display:none">
@@ -265,6 +271,8 @@
         </div>
       <button id="btn-ready" data-i18n="ready">Готов</button>
         <button id="btn-start" style="display:none" data-i18n="start">▶ Старт</button>
+        <button id="btn-tournament" style="display:none" data-i18n="tournBtn">🏆 Турнир</button>
+        <div id="bracket" class="maps-list"></div>
         <button id="btn-leave" data-i18n="leave">Выйти</button>
       </div>
       <div class="menu-row" id="bot-buttons" style="display:none">

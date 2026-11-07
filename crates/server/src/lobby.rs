@@ -17,7 +17,21 @@ use tokio::sync::{broadcast, mpsc, Mutex};
 use crate::game::{self, GameCmd};
 use crate::store::{PlayerRecord, Store};
 
+/// Состояние турнирной сетки.
+pub struct Tournament {
+    pub rounds: Vec<Vec<popproto_core::TDuel>>,
+    pub round_idx: usize,
+    pub match_idx: usize,
+    /// Текущий дуёл (идёт матч).
+    pub current: Option<(u32, u32)>,
+    /// Игрок, ожидающий следующий раунд при нечётном числе.
+    pub bye: Option<u32>,
+    pub champion: Option<u32>,
+}
+
 pub struct Room {
+    /// Турнир (None — обычная комната).
+    pub tournament: Option<Tournament>,
     pub id: u32,
     /// 6-значный код входа.
     pub code: String,
@@ -39,6 +53,14 @@ impl Room {
     pub fn state(&self) -> RoomState {
         RoomState {
             room_id: self.id,
+            tournament: self
+                .tournament
+                .as_ref()
+                .map(|t| popproto_core::TournamentInfo {
+                    rounds: t.rounds.clone(),
+                    current: t.current.as_ref().map(|(a, b)| (*a, *b)),
+                    champion: t.champion,
+                }),
             code: self.code.clone(),
             name: self.name.clone(),
             mode: self.mode,
@@ -145,18 +167,82 @@ struct Inner {
     next_room_id: u32,
 }
 
+/// Кольцо последних реплеев.
+type ReplayRing = Vec<(popproto_core::ReplayMeta, Vec<Vec<u8>>)>;
+
 #[derive(Clone)]
 pub struct Lobby {
     inner: Arc<Mutex<Inner>>,
     /// Хранилище для начисления XP по итогам матчей.
     store: Arc<Store>,
+    /// Последние реплеи матчей (кольцо на 10 матчей).
+    replays: Arc<std::sync::Mutex<ReplayRing>>,
+    replay_seq: Arc<std::sync::atomic::AtomicU32>,
 }
 
 impl Lobby {
+    /// Имя комнаты (для реплеев).
+    pub fn room_name(&self, room_id: u32) -> Option<String> {
+        self.inner
+            .blocking_lock()
+            .rooms
+            .get(&room_id)
+            .map(|r| r.name.clone())
+    }
+
+    /// Сохранить реплей завершённого матча.
+    pub fn save_replay(&self, name: &str, level: u32, frames: Vec<Vec<u8>>) -> u32 {
+        if frames.is_empty() {
+            return 0;
+        }
+        let id = self
+            .replay_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        let meta = popproto_core::ReplayMeta {
+            id,
+            name: name.to_string(),
+            level,
+            ts: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0),
+            frames: frames.len() as u32,
+        };
+        let mut ring = self.replays.lock().unwrap();
+        ring.push((meta, frames));
+        if ring.len() > 10 {
+            ring.remove(0);
+        }
+        id
+    }
+
+    /// Список реплеев.
+    pub fn replay_list(&self) -> Vec<popproto_core::ReplayMeta> {
+        self.replays
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(m, _)| m.clone())
+            .collect()
+    }
+
+    /// Данные реплея.
+    pub fn replay_data(&self, id: u32) -> Option<(popproto_core::ReplayMeta, Vec<Vec<u8>>)> {
+        self.replays
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(m, _)| m.id == id)
+            .cloned()
+    }
+
     pub fn new(store: Arc<Store>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner::default())),
             store,
+            replays: Arc::new(std::sync::Mutex::new(Vec::new())),
+            replay_seq: Arc::new(std::sync::atomic::AtomicU32::new(0)),
         }
     }
 
@@ -208,6 +294,7 @@ impl Lobby {
         let (tx, _rx) = broadcast::channel(128);
         let host = info_from_record(creator, 0);
         let room = Room {
+            tournament: None,
             id,
             code,
             name: name.to_string(),
@@ -385,6 +472,170 @@ impl Lobby {
         Ok(())
     }
 
+    /// Хост запускает турнир: перемешивает игроков и строит первый раунд.
+    pub async fn start_tournament(&self, host_id: u32, room_id: u32) -> Result<(), LobbyError> {
+        let mut inner = self.inner.lock().await;
+        let room = inner.rooms.get_mut(&room_id).ok_or(ErrCode::RoomNotFound)?;
+        if room.host_id != host_id {
+            return Err(ErrCode::NotHost.into());
+        }
+        if room.phase != RoomPhase::Lobby {
+            return Err(ErrCode::NotAllowed.into());
+        }
+        let mut ids: Vec<u32> = room
+            .players
+            .iter()
+            .filter(|p| p.online)
+            .map(|p| p.id)
+            .collect();
+        if ids.len() < 4 {
+            return Err(LobbyError::Backend("нужно минимум 4 игрока".into()));
+        }
+        let seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos() as u64)
+            .unwrap_or(7);
+        for i in (1..ids.len()).rev() {
+            let j = ((seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(i as u64 * 9973)) as usize)
+                % (i + 1);
+            ids.swap(i, j);
+        }
+        let mut pairs: Vec<popproto_core::TDuel> = vec![];
+        let mut k = 0;
+        while k + 1 < ids.len() {
+            pairs.push(popproto_core::TDuel {
+                a: ids[k],
+                b: ids[k + 1],
+                winner: None,
+            });
+            k += 2;
+        }
+        let bye = if ids.len() % 2 == 1 {
+            Some(ids[ids.len() - 1])
+        } else {
+            None
+        };
+        room.tournament = Some(Tournament {
+            rounds: vec![pairs],
+            round_idx: 0,
+            match_idx: 0,
+            current: None,
+            bye,
+            champion: None,
+        });
+        let duel = room.tournament.as_ref().unwrap().rounds[0][0].clone();
+        let _ = inner.games.remove(&room_id);
+        self.spawn_duel(room_id, duel.a, duel.b).await;
+        Ok(())
+    }
+
+    /// Запустить дуёл двух игроков турнира.
+    async fn spawn_duel(&self, room_id: u32, a: u32, b: u32) {
+        let roster: Vec<(u32, String, Option<BotLevel>, u8)> = {
+            let mut inner = self.inner.lock().await;
+            let Some(room) = inner.rooms.get_mut(&room_id) else {
+                return;
+            };
+            room.phase = RoomPhase::Playing;
+            for p in room.players.iter_mut() {
+                p.ready = p.id == a || p.id == b;
+            }
+            let Some(t) = room.tournament.as_mut() else {
+                return;
+            };
+            t.current = Some((a, b));
+            room.players
+                .iter()
+                .filter(|p| p.id == a || p.id == b)
+                .map(|p| (p.id, p.name.clone(), p.bot_level, p.ult))
+                .collect()
+        };
+        let cmd_tx = game::spawn(
+            self.clone(),
+            room_id,
+            roster,
+            1.0,
+            false,
+            GameMode::Coop,
+            None,
+        );
+        let mut inner = self.inner.lock().await;
+        inner.games.insert(room_id, cmd_tx);
+        if let Some(r) = inner.rooms.get(&room_id) {
+            r.broadcast_state();
+        }
+    }
+
+    /// Итог дуёла: записать победителя и запустить следующий матч/раунд.
+    async fn tournament_advance(&self, room_id: u32, scores: Vec<(u32, u32)>) {
+        let next: Option<(u32, u32)>;
+        {
+            let mut inner = self.inner.lock().await;
+            let Some(room) = inner.rooms.get_mut(&room_id) else {
+                return;
+            };
+            let Some(t) = room.tournament.as_mut() else {
+                return;
+            };
+            let Some((a, b)) = t.current.take() else {
+                return;
+            };
+            let sc = |id: u32| {
+                scores
+                    .iter()
+                    .find(|(pid, _)| *pid == id)
+                    .map(|(_, s)| *s)
+                    .unwrap_or(0)
+            };
+            let winner = if sc(a) >= sc(b) { a } else { b };
+            if let Some(duel) = t.rounds[t.round_idx].get_mut(t.match_idx) {
+                duel.winner = Some(winner);
+            }
+            t.match_idx += 1;
+            let round = &t.rounds[t.round_idx];
+            if t.match_idx < round.len() {
+                next = Some((round[t.match_idx].a, round[t.match_idx].b));
+            } else {
+                let mut winners: Vec<u32> = round.iter().filter_map(|d| d.winner).collect();
+                if winners.is_empty() {
+                    if let Some(b) = t.bye {
+                        winners.push(b);
+                    }
+                }
+                if winners.len() <= 1 {
+                    t.champion = winners.first().copied();
+                    room.broadcast_state();
+                    return;
+                }
+                let mut pairs: Vec<popproto_core::TDuel> = vec![];
+                let mut k = 0;
+                while k + 1 < winners.len() {
+                    pairs.push(popproto_core::TDuel {
+                        a: winners[k],
+                        b: winners[k + 1],
+                        winner: None,
+                    });
+                    k += 2;
+                }
+                let bye = if winners.len() % 2 == 1 {
+                    Some(winners[winners.len() - 1])
+                } else {
+                    None
+                };
+                t.rounds.push(pairs.clone());
+                t.round_idx += 1;
+                t.match_idx = 0;
+                t.bye = bye;
+                next = Some((pairs[0].a, pairs[0].b));
+            }
+        }
+        if let Some((a, b)) = next {
+            self.spawn_duel(room_id, a, b).await;
+        }
+    }
+
     /// Матч завершён: снять фазу Playing, сбросить готовность, начислить XP.
     pub async fn finish_match(&self, room_id: u32, scores: Vec<(u32, u32)>) {
         {
@@ -404,6 +655,10 @@ impl Lobby {
             MATCHES_TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             tracing::info!("комната #{room_id}: матч завершён");
             room.broadcast_state();
+            if room.tournament.is_some() {
+                self.tournament_advance(room_id, scores).await;
+                return;
+            }
         }
         // XP в хранилище: очки/10, минимум 1 за матч с очками
         for (player_id, score) in &scores {
