@@ -62,7 +62,11 @@
   .card-create h3{ color:#e84393; } .card-join h3{ color:#4a69bd; }
   .card-rooms h3{ color:#10ac84; } .card-top h3{ color:#ee7724; }
   .menu-card input, .menu-card select{ width:100%; font:inherit; padding:8px 10px;
-    border:2px solid #2f2b44; border-radius:12px; background:#fff; }
+    border:2.5px solid #2f2b44; border-radius:14px; background-color:#fff; color:#3b3552; font-weight:bold;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%232f2b44' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 10px center; background-size:12px;
+    -webkit-appearance:none; appearance:none; cursor:pointer; }
+  .menu-card input{ background-image:none; }
   .menu-card button{ font:inherit; padding:9px 14px; border:3px solid #2f2b44; border-radius:14px;
     background:var(--c2,#feca57); cursor:pointer; box-shadow:0 3px 0 rgba(47,43,68,.25); transition:transform .12s; }
   .menu-card button:hover{ transform:translateY(-2px); }
@@ -163,6 +167,13 @@
   #demo-progress span.done{ background:#1dd1a1; }
   #demo-progress span.cur{ background:#ff6b6b; }
   /* ---- тематические слайдеры и скроллбары ---- */
+  select{ -webkit-appearance:none; appearance:none; padding:7px 30px 7px 12px; border-radius:14px;
+    border:2.5px solid #2f2b44; background-color:#fff; color:#3b3552; font-weight:bold; font-size:.95rem; cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%232f2b44' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 10px center; background-size:12px;
+    box-shadow:0 3px 0 rgba(47,43,68,.2); }
+  select:hover{ background-color:#fff0d9; }
+  select:focus{ outline:none; border-color:#ff6b6b; box-shadow:0 0 0 3px #ffe6f0; }
   input[type=range]{ -webkit-appearance:none; appearance:none; height:22px; background:transparent; cursor:pointer; }
   input[type=range]::-webkit-slider-runnable-track{ height:10px; border-radius:6px;
     background:linear-gradient(90deg,#ff9ff3,#feca57 55%,#48dbfb); border:2px solid #2f2b44;
