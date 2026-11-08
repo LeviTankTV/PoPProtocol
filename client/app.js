@@ -1170,22 +1170,38 @@ function render() {
   // хвосты живут только у мячей в поле; мёртвые удаляем, телепорт не сшиваем
   const liveIds = new Set(S.latest.balls.map((b) => b.id));
   for (const id of [...S.trails.keys()]) if (!liveIds.has(id)) S.trails.delete(id);
+  if (!S.ballYHist) S.ballYHist = new Map();
+  for (const id of [...S.ballYHist.keys()]) if (!liveIds.has(id)) S.ballYHist.delete(id);
   const popNow = performance.now();
   if (!S.ballSpawn) S.ballSpawn = new Map();
-  if (!S.prevBalls) S.prevBalls = new Map();
-  const curBalls = new Map();
+  if (!S.hideRing) S.hideRing = new Set();
+  const shieldOn = (S.latest.events || []).some((ev) => ev.event === 8);
   for (const b of S.latest.balls) {
     const e = entityAt(buf, rt, b.id, (s) => s.balls.find((q) => q.id === b.id));
     if (!e) { S.trails.delete(b.id); continue; }
-    // ушедший за нижнюю кромку мяч не рисуем: без «призрака» под ракеткой
-    if (e.y > H + 10) { S.trails.delete(b.id); continue; }
     let color = S.latest && (S.latest.fx & 2) ? 0xff9f43 : pcolor((playerInfo(b.owner_id) || {}).color);
     const ownerInfo = playerInfo(b.owner_id);
     const sk = window.__SKINS ? window.__SKINS[(ownerInfo && ownerInfo.skin) || 0] : null;
     if (sk && sk.id > 0) color = parseInt(sk.body.replace("#", ""), 16);
-    curBalls.set(b.id, { x: e.x, y: e.y, color });
-    // мой прилипший мяч клеится к предсказанной ракетке — ноль отставания
-    const glued = b.owner_id === S.myId && e.y > H - 80 && S.paddleX !== null;
+    // мяч ниже ракетки (и щит земли не спасает) — пропадает у линии ракетки, без «падения вниз»
+    if (!shieldOn && e.y > H - 26) {
+      if (!S.hideRing.has(b.id)) {
+        S.hideRing.add(b.id);
+        spawnRing(e.x, H - 16, color, 22);
+        sfxPoof();
+      }
+      S.trails.delete(b.id);
+      continue;
+    }
+    // прилипший мяч: y не меняется 8 кадров подряд (готовый мяч стоит на ракетке);
+    // летящий через зону мяч за кадр уходит на 6+ px — клеим только реально стоящий
+    if (!S.ballYHist.has(b.id)) S.ballYHist.set(b.id, []);
+    const yhist = S.ballYHist.get(b.id);
+    yhist.push(e.y);
+    if (yhist.length > 8) yhist.shift();
+    const stuck = yhist.length >= 8 && Math.max(...yhist) - Math.min(...yhist) < 1.2 && e.y > H - 100;
+    // мой готовый мяч клеится к предсказанной ракетке — ноль отставания
+    const glued = stuck && b.owner_id === S.myId && S.paddleX !== null;
     if (glued) e.x = S.paddleX;
     let tr = S.trails.get(b.id);
     if (!tr) { tr = []; S.trails.set(b.id, tr); }
@@ -1216,16 +1232,7 @@ function render() {
     g.circle(e.x - 3, e.y - 3.5, 3).fill({ color: 0xffffff, alpha: 0.95 });
     g.circle(e.x - 1.2, e.y - 1.8, 1.4).fill({ color: 0xffffff, alpha: 0.7 });
   }
-  // хлопок на потере мяча: кольцо в точке, где он ушёл за ракетку
-  if (S.prevBalls && S.prevBalls.size) {
-    for (const [pid, p] of S.prevBalls) {
-      if (!curBalls.has(pid)) {
-        spawnRing(p.x, Math.min(H - 10, p.y), p.color, 22);
-        sfxPoof();
-      }
-    }
-  }
-  S.prevBalls = curBalls;
+  for (const id of [...S.hideRing]) if (!liveIds.has(id)) S.hideRing.delete(id);
 
   if (S.trails.size > S.latest.balls.length * 2) {
     const ids = new Set(S.latest.balls.map((b) => b.id));
