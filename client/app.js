@@ -1253,6 +1253,7 @@ function bindInput() {
   document.addEventListener("pointermove", (e) => {
     const c = canvas();
     if (!c || !S.latest || document.getElementById("screen-game").style.display === "none") return;
+    S.demoUserMove = performance.now(); // в демо мышь пользователя приоритетнее автопилота
     const rect = c.getBoundingClientRect();
     if (!rect.width) return;
     if (S.settings.mode === "rel") {
@@ -1649,13 +1650,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   };
 
-  const demoSweep = () => { // автопилот: ракетка плавно метёт поле
+  const demoSweep = () => { // автопилот: ракетка плавно метёт поле (пауза 2 с после движения мыши)
     if (!S.latest) return;
+    if (S.demoUserMove && performance.now() - S.demoUserMove < 2000) return;
     const t = (performance.now() / 2600) % 1;
     S.inputX = 40 + (S.latest.field_w - 80) * (0.5 - 0.5 * Math.cos(t * Math.PI * 2));
   };
 
   const demoStop = () => {
+    S.demoUserMove = 0;
     if (demoState) { clearInterval(demoState.timer); clearInterval(demoState.relaunch); demoState = null; }
     if (demoCard()) demoCard().style.display = "none";
   };
@@ -1681,6 +1684,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!await demoCond(() => S.room && S.room.name === name, 5000)) { demoChapter(idx + 1); return; }
     for (let i = 0; i < ch.bots; i++) { send(P.mAddBot(2)); await demoWait(150); }
     await demoCond(() => S.room && S.room.players.length === 1 + ch.bots, 4000);
+    if (idx === 6) {
+      // турнир: старт сетки прямо из лобби (обычный матч не нужен)
+      send(P.mStartTournament());
+      if (!await demoCond(() => S.room && S.room.tournament && S.room.tournament.current, 6000)) { demoChapter(idx + 1); return; }
+      await demoCond(() => !!S.latest, 8000);
+      showScreen("game");
+      demoState = { ch: idx, timer: setInterval(demoSweep, 50), relaunch: 0 };
+      return;
+    }
     send(P.mReady(true));
     send(P.mStart());
     if (!await demoCond(() => !!S.latest, 8000)) { demoChapter(idx + 1); return; }

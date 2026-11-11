@@ -152,6 +152,8 @@ pub struct Game {
     base_speed: f32,
     /// Шанс выпадения капсулы (тесты ставят 1.0).
     capsule_chance: f32,
+    /// Демо-комнаты («🎓 Демо: …»): гарантированные капсулы и быстрые события.
+    pub demo: bool,
     /// История X мячей по тикам — реакция ботов с задержкой.
     ball_hist: VecDeque<Vec<f32>>,
     /// Активные евенты комнаты.
@@ -259,6 +261,7 @@ impl Game {
             slow_secs: 0.0,
             base_speed: BASE_SPEED * speed_factor.clamp(0.5, 2.0),
             capsule_chance: CAPSULE_CHANCE,
+            demo: false,
             ball_hist: VecDeque::new(),
             events: vec![],
             // Для отладки и тестов интервал евентов можно ускорить: EVENT_TIMER_SECS=6
@@ -1053,8 +1056,13 @@ impl Game {
         // евенты: таймер запуска, периодические спавны, истечение активных
         if self.events_enabled && self.phase == MatchPhase::Play {
             self.event_timer -= dt;
+            if self.demo && self.event_timer > 2.0 {
+                self.event_timer = 2.0; // демо: событие скоро
+            }
             if self.event_timer <= 0.0 {
-                self.event_timer = if self.event_interval > 0.0 {
+                self.event_timer = if self.demo {
+                    6.0
+                } else if self.event_interval > 0.0 {
                     self.event_interval
                 } else {
                     EVENT_MIN_SECS + self.next_rand() * (EVENT_MAX_SECS - EVENT_MIN_SECS)
@@ -1125,7 +1133,8 @@ impl Game {
                     p.ult_charge = (p.ult_charge + 1).min(2);
                 }
             }
-            if self.next_rand() < self.capsule_chance {
+            let cap_chance = if self.demo { 0.6 } else { self.capsule_chance };
+            if self.next_rand() < cap_chance {
                 self.spawn_capsule(ev.c, ev.r);
             }
         }
@@ -1513,6 +1522,12 @@ pub fn spawn(
         let mut game = Game::new(players, speed_factor, events_enabled, mode);
         if let Some(rows) = &custom_rows {
             game.field.load_rows(rows);
+        }
+        if lobby
+            .room_name(room_id)
+            .map_or(false, |n| n.starts_with('🎓'))
+        {
+            game.demo = true; // демо-тур: капсулы и события гарантированно показываются
         }
         // запись реплея: закодированные Snapshot-кадры (кольцо на 3 минуты)
         let mut replay_frames: Vec<Vec<u8>> = vec![];
