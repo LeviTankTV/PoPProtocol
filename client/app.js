@@ -1664,6 +1664,17 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
   window.__demoStop = demoStop;
 
+  // анимационный переход между главами: оверлей с названием главы
+  const demoTrans = (idx) => {
+    const el = document.getElementById("demo-transition");
+    if (!el) return;
+    if (idx === null || idx === undefined || idx >= DEMO_CH.length) { el.classList.remove("visible"); return; }
+    const ch = DEMO_CH[idx];
+    document.getElementById("dt-chapter").textContent = `${t("demoChapter")} ${idx + 1}/${DEMO_CH.length}`;
+    document.getElementById("dt-title").textContent = t(ch.title);
+    el.classList.add("visible");
+  };
+
   // выйти из текущей комнаты и дождаться выхода (без слепых таймеров)
   const demoLeave = async () => {
     if (!S.room) return;
@@ -1675,8 +1686,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   // создать главу: комната -> боты -> ready -> start -> дождаться снапшотов -> мяч игрока в игре
   const demoChapter = async (idx) => {
     demoStop();
-    if (idx >= DEMO_CH.length) { showScreen("menu"); return; }
-    demoShow(idx);
+    if (idx >= DEMO_CH.length) { demoTrans(null); showScreen("menu"); return; }
+    demoTrans(idx); // анимационный переход: оверлей закрывает смену комнаты
     const ch = DEMO_CH[idx];
     const name = "🎓 Демо: " + t(ch.title);
     await demoLeave();
@@ -1687,7 +1698,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (idx === 6) {
       // турнир: старт сетки прямо из лобби (обычный матч не нужен)
       send(P.mStartTournament());
-      if (!await demoCond(() => S.room && S.room.tournament && S.room.tournament.current, 6000)) { demoChapter(idx + 1); return; }
+      if (!await demoCond(() => S.room && S.room.tournament && S.room.tournament.current, 6000)) { demoTrans(null); demoChapter(idx + 1); return; }
       await demoCond(() => !!S.latest, 8000);
       showScreen("game");
       demoState = { ch: idx, timer: setInterval(demoSweep, 50), relaunch: 0 };
@@ -1696,6 +1707,9 @@ window.addEventListener("DOMContentLoaded", async () => {
       demoState.relaunch = setInterval(() => {
         if (S.latest && S.latest.phase === 1 && !S.latest.balls.some((b) => b.owner_id === S.myId)) send(P.mAction());
       }, 1200);
+      await demoWait(600);
+      demoTrans(null);
+      demoShow(idx);
       return;
     }
     send(P.mReady(true));
@@ -1716,6 +1730,9 @@ window.addEventListener("DOMContentLoaded", async () => {
       }, 400);
       setTimeout(() => clearInterval(poll), ch.dur - 1000);
     }
+    await demoWait(600);
+    demoTrans(null); // плавное раскрытие главы
+    demoShow(idx);
     if (idx === 6) { // турнир: сетка на 4 (я + 3 бота)
       send(P.mStartTournament());
     }
