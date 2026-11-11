@@ -1525,7 +1525,7 @@ pub fn spawn(
         }
         if lobby
             .room_name(room_id)
-            .map_or(false, |n| n.starts_with('🎓'))
+            .is_some_and(|n| n.starts_with('🎓'))
         {
             game.demo = true; // демо-тур: капсулы и события гарантированно показываются
         }

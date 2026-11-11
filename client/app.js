@@ -1691,6 +1691,11 @@ window.addEventListener("DOMContentLoaded", async () => {
       await demoCond(() => !!S.latest, 8000);
       showScreen("game");
       demoState = { ch: idx, timer: setInterval(demoSweep, 50), relaunch: 0 };
+      // в дуёле тоже играем: запуск и перезапуск мяча
+      send(P.mAction());
+      demoState.relaunch = setInterval(() => {
+        if (S.latest && S.latest.phase === 1 && !S.latest.balls.some((b) => b.owner_id === S.myId)) send(P.mAction());
+      }, 1200);
       return;
     }
     send(P.mReady(true));
