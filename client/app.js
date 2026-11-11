@@ -264,13 +264,14 @@ function handle(m) {
         const left = (S.overUntil || 0) - performance.now();
         if (left > 60 && !S.overPending) {
           S.overPending = true;
-          setTimeout(() => { S.overPending = false; S.overUntil = 0; showScreen("room"); }, left);
+          S.overTimer = setTimeout(() => { S.overPending = false; S.overUntil = 0; showScreen("room"); }, left);
         } else if (!S.overPending) {
           S.overUntil = 0;
           showScreen("room");
         }
       } else {
         S.overUntil = 0;
+        if (S.overTimer) { clearTimeout(S.overTimer); S.overTimer = 0; S.overPending = false; }
         showScreen("game"); // реконнект/вход в идущий матч — сразу поле
       }
       break;
@@ -1605,7 +1606,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
   window.__loadReplays = loadReplays;
 
-  /* ---------- демо-тур для защиты ---------- */
+  /* ---------- демо-тур для защиты: конечный автомат с ожиданием реальных состояний ---------- */
   const DEMO_MAP = [
     "eeee111111",
     "11t1111g11",
@@ -1614,15 +1615,21 @@ window.addEventListener("DOMContentLoaded", async () => {
     "3333333333",
   ];
   const DEMO_CH = [
-    { title: "demoC1t", text: "demoC1p", dur: 14000, room: { mode: 0, rows: null, events: false, bosses: false, speed: 1.0 } },
-    { title: "demoC2t", text: "demoC2p", dur: 15000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 } },
-    { title: "demoC3t", text: "demoC3p", dur: 14000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 } },
-    { title: "demoC4t", text: "demoC4p", dur: 16000, room: { mode: 0, rows: null, events: true, bosses: false, speed: 1.0 } },
-    { title: "demoC5t", text: "demoC5p", dur: 16000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 } },
-    { title: "demoC6t", text: "demoC6p", dur: 18000, room: { mode: 1, rows: null, events: false, bosses: true, speed: 1.0 } },
-    { title: "demoC7t", text: "demoC7p", dur: 16000, room: { mode: 0, rows: null, events: false, bosses: false, speed: 1.0 } },
+    { title: "demoC1t", text: "demoC1p", dur: 14000, room: { mode: 0, rows: null, events: false, bosses: false, speed: 1.0 }, bots: 1 },
+    { title: "demoC2t", text: "demoC2p", dur: 16000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 }, bots: 1 },
+    { title: "demoC3t", text: "demoC3p", dur: 14000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 }, bots: 1 },
+    { title: "demoC4t", text: "demoC4p", dur: 17000, room: { mode: 0, rows: null, events: true, bosses: false, speed: 1.0 }, bots: 1 },
+    { title: "demoC5t", text: "demoC5p", dur: 18000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 }, bots: 1 },
+    { title: "demoC6t", text: "demoC6p", dur: 18000, room: { mode: 1, rows: null, events: false, bosses: true, speed: 1.0 }, bots: 1 },
+    { title: "demoC7t", text: "demoC7p", dur: 18000, room: { mode: 0, rows: null, events: false, bosses: false, speed: 1.0 }, bots: 3 },
   ];
-  let demoState = null; // { ch, timer, sweep }
+  let demoState = null; // { ch, timer, relaunch }
+  const demoWait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const demoCond = async (fn, ms) => {
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) { if (fn()) return true; await demoWait(80); }
+    return false;
+  };
 
   const demoCard = () => document.getElementById("demo-card");
   const demoShow = (chIdx) => {
@@ -1642,21 +1649,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   };
 
-  const demoRoom = async (cfg, name) => {
-    // выйти из текущей комнаты, создать новую с нужными настройками
-    if (S.room) { send(P.mLeave()); await new Promise((r) => setTimeout(r, 450)); }
-    send(P.mCreateRoom(name, null, cfg.mode, { max_players: 10, events_enabled: cfg.events, bosses_enabled: cfg.bosses, speed_factor: cfg.speed, custom_rows: cfg.rows }));
-    await new Promise((r) => setTimeout(r, 500));
-    send(P.mAddBot(2)); // профи-бот играет сам
-    await new Promise((r) => setTimeout(r, 200));
-    send(P.mReady(true));
-    await new Promise((r) => setTimeout(r, 150));
-    send(P.mStart());
-    await new Promise((r) => setTimeout(r, 700));
-    send(P.mAction()); // запуск мяча игрока: комбо и ульты работают
-    await new Promise((r) => setTimeout(r, 400));
-  };
-
   const demoSweep = () => { // автопилот: ракетка плавно метёт поле
     if (!S.latest) return;
     const t = (performance.now() / 2600) % 1;
@@ -1664,29 +1656,51 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
 
   const demoStop = () => {
-    if (demoState) { clearInterval(demoState.timer); demoState = null; }
+    if (demoState) { clearInterval(demoState.timer); clearInterval(demoState.relaunch); demoState = null; }
     if (demoCard()) demoCard().style.display = "none";
   };
   window.__demoStop = demoStop;
 
+  // выйти из текущей комнаты и дождаться выхода (без слепых таймеров)
+  const demoLeave = async () => {
+    if (!S.room) return;
+    send(P.mLeave());
+    await demoCond(() => !S.room, 4000);
+    await demoWait(200);
+  };
+
+  // создать главу: комната -> боты -> ready -> start -> дождаться снапшотов -> мяч игрока в игре
   const demoChapter = async (idx) => {
     demoStop();
     if (idx >= DEMO_CH.length) { showScreen("menu"); return; }
     demoShow(idx);
-    showScreen("menu");
     const ch = DEMO_CH[idx];
-    await demoRoom(ch.room, "🎓 Демо: " + t(ch.title));
+    const name = "🎓 Демо: " + t(ch.title);
+    await demoLeave();
+    send(P.mCreateRoom(name, null, ch.room.mode, { max_players: 10, events_enabled: ch.room.events, bosses_enabled: ch.room.bosses, speed_factor: ch.room.speed, custom_rows: ch.room.rows }));
+    if (!await demoCond(() => S.room && S.room.name === name, 5000)) { demoChapter(idx + 1); return; }
+    for (let i = 0; i < ch.bots; i++) { send(P.mAddBot(2)); await demoWait(150); }
+    await demoCond(() => S.room && S.room.players.length === 1 + ch.bots, 4000);
+    send(P.mReady(true));
+    send(P.mStart());
+    if (!await demoCond(() => !!S.latest, 8000)) { demoChapter(idx + 1); return; }
     showScreen("game");
-    demoState = { ch: idx, timer: setInterval(demoSweep, 50) };
-    // ульты в главе 5: зарядим комбо-заряд (бот ломает кирпичи) и используем ульту метеорита
-    if (idx === 4) {
+    demoState = { ch: idx, timer: setInterval(demoSweep, 50), relaunch: 0 };
+    // мяч игрока в игре: запуск и авто-перезапуск при потере
+    send(P.mAction());
+    demoState.relaunch = setInterval(() => {
+      if (S.latest && S.latest.phase === 1 && !S.latest.balls.some((b) => b.owner_id === S.myId)) send(P.mAction());
+    }, 1200);
+    if (idx === 4) { // ульта: выбрать метеорит и применить при первом заряде
       send(P.mSetUlt(2));
-      // ждать заряд от комбо и применить метеорит
       const poll = setInterval(() => {
         const me = S.latest && S.latest.players.find((p) => p.id === S.myId);
         if (me && me.ult_charge > 0) { send(P.mUseUlt()); clearInterval(poll); }
       }, 400);
-      setTimeout(() => clearInterval(poll), 15000);
+      setTimeout(() => clearInterval(poll), ch.dur - 1000);
+    }
+    if (idx === 6) { // турнир: сетка на 4 (я + 3 бота)
+      send(P.mStartTournament());
     }
     setTimeout(() => { if (demoState && demoState.ch === idx) demoChapter(idx + 1); }, ch.dur);
   };
