@@ -16,7 +16,7 @@ const I18N = {
  demoC4t: "9 живых событий", demoC4p: "Метеоритный дождь, тьма, инверсия, золото ×3, ярость скорости, камнепад, капсульный фонтан, двойной мяч, щит земли. События включены в этой комнате.",
  demoC5t: "Ульты от комбо", demoC5p: "Комбо ×5 заряжает ульту (максимум 2 заряда). Через 9 секунд автопилот применит ☄ Метеорит — мяч пробивает кирпичи насквозь. Ещё есть ❄ Лед и 🧲 Магнит.",
  demoC6t: "Боссы", demoC6p: "Босс-раш: боссы подряд. Кракен — щиты-щупальца, Медуза — мины, Золото-босс — бочки, Клон — отражает вниз, Голем — стан, Кубик — ярость. Щиты видны: HP и трещины.",
- demoC7t: "Турнир и реплеи", demoC7p: "Турнирная сетка: дуёлы 1v1 до чемпиона (кнопка 🏆 при 4+ игроках). Каждый матч записывается — реплеи в меню с плеером: пауза и покадровая перемотка.", tournBtn: "🏆 Турнир", tournNeed: "нужно 4+ игрока", tournChampion: "🏆 Чемпион", tournDuel: "идёт дуёл", tournWait: "следующий дуёл скоро", rpTitle: "🎬 Реплеи", rpWatch: "Смотреть", rpEmpty: "сыграйте матч — он запишется!", rpClose: "← Закрепить просмотр: ←/→ кадры, пробел пауза", setTitle: "Настройки", setMusic: "Музыка", setSfx: "Звуки", setParts: "Частицы", setAll: "все", setLess: "меньше", setOff: "выкл", setMode: "Мышь", setAbs: "абсолютно", setRel: "относительная", setSens: "Сенса", setNet: "Панель сети", setReset: "Сбросить прогресс", setClose: "Готово",
+ demoC7t: "Турнирная сетка", demoC7p: "🏆 Турнир при 4+ игроках: дуёлы 1v1, сетка справа — дуёлы идут один за другим до чемпиона. Смотри, как пары продвигаются.", demoC8t: "Реплеи матчей", demoC8p: "Каждый матч записывается. Реплеи → Смотреть: воспроизведение с паузой и покадровой перемоткой (←/→, пробел). Это реально записанные матчи.", tournBtn: "🏆 Турнир", tournNeed: "нужно 4+ игрока", tournChampion: "🏆 Чемпион", tournDuel: "идёт дуёл", tournWait: "следующий дуёл скоро", rpTitle: "🎬 Реплеи", rpWatch: "Смотреть", rpEmpty: "сыграйте матч — он запишется!", rpClose: "← Закрепить просмотр: ←/→ кадры, пробел пауза", setTitle: "Настройки", setMusic: "Музыка", setSfx: "Звуки", setParts: "Частицы", setAll: "все", setLess: "меньше", setOff: "выкл", setMode: "Мышь", setAbs: "абсолютно", setRel: "относительная", setSens: "Сенса", setNet: "Панель сети", setReset: "Сбросить прогресс", setClose: "Готово",
     bots: "Боты:", botLazy: "+ Лентяй", botNormal: "+ Обычный", botPro: "+ Профи",
     hint: "мышь — ракетка · клик/пробел — запуск · 1–8 — эмоции",
     noRooms: "Пока нет комнат — создайте первую!", enter: "Войти", inProgress: "▶ идёт матч", lobbySt: "лобби",
@@ -36,7 +36,7 @@ const I18N = {
  demoC4t: "9 live events", demoC4p: "Meteor rain, darkness, inversion, gold ×3, speed frenzy, rockfall, capsule fountain, double ball, ground shield. Events are on in this room.",
  demoC5t: "Ultimates from combo", demoC5p: "Combo ×5 charges an ultimate (max 2). In 9 seconds autopilot triggers ☄ Meteor — the ball pierces bricks. Also ❄ Ice Wave and 🧲 Magnet.",
  demoC6t: "Bosses", demoC6p: "Boss Rush: bosses in a row. Kraken — shield tentacles, Medusa — mines, Gold Baron — barrels, Mirror — kicks down, Golem — stun, Cube — enrage. Shields show HP and cracks.",
- demoC7t: "Tournament & replays", demoC7p: "Bracket: 1v1 duels up to the champion (🏆 button at 4+ players). Every match is recorded — replays in the menu with a player: pause and frame stepping.", tournBtn: "🏆 Tournament", tournNeed: "need 4+ players", tournChampion: "🏆 Champion", tournDuel: "duel in progress", tournWait: "next duel soon", rpTitle: "🎬 Replays", rpWatch: "Watch", rpEmpty: "play a match — it gets recorded!", rpClose: "← Close · ←/→ frames, space pause", setTitle: "Settings", setMusic: "Music", setSfx: "SFX", setParts: "Particles", setAll: "all", setLess: "less", setOff: "off", setMode: "Mouse", setAbs: "absolute", setRel: "relative", setSens: "Sensitivity", setNet: "Net panel", setReset: "Reset progress", setClose: "Done",
+ demoC7t: "Tournament bracket", demoC7p: "🏆 Tournament at 4+ players: 1v1 duels, bracket on the right — duels run one after another up to the champion. Watch the pairs progress.", demoC8t: "Match replays", demoC8p: "Every match is recorded. Replays menu → Watch: playback with pause and frame stepping (←/→, space). These are real recorded matches.", tournBtn: "🏆 Tournament", tournNeed: "need 4+ players", tournChampion: "🏆 Champion", tournDuel: "duel in progress", tournWait: "next duel soon", rpTitle: "🎬 Replays", rpWatch: "Watch", rpEmpty: "play a match — it gets recorded!", rpClose: "← Close · ←/→ frames, space pause", setTitle: "Settings", setMusic: "Music", setSfx: "SFX", setParts: "Particles", setAll: "all", setLess: "less", setOff: "off", setMode: "Mouse", setAbs: "absolute", setRel: "relative", setSens: "Sensitivity", setNet: "Net panel", setReset: "Reset progress", setClose: "Done",
     bots: "Bots:", botLazy: "+ Lazy", botNormal: "+ Normal", botPro: "+ Pro",
     hint: "mouse — paddle · click/space — launch · 1–8 — emotes",
     noRooms: "No rooms yet — create the first one!", enter: "Join", inProgress: "▶ playing", lobbySt: "lobby",
@@ -1622,7 +1622,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     { title: "demoC4t", text: "demoC4p", dur: 17000, room: { mode: 0, rows: null, events: true, bosses: false, speed: 1.0 }, bots: 1 },
     { title: "demoC5t", text: "demoC5p", dur: 18000, room: { mode: 0, rows: DEMO_MAP, events: false, bosses: false, speed: 1.0 }, bots: 1 },
     { title: "demoC6t", text: "demoC6p", dur: 18000, room: { mode: 1, rows: null, events: false, bosses: true, speed: 1.0 }, bots: 1 },
-    { title: "demoC7t", text: "demoC7p", dur: 18000, room: { mode: 0, rows: null, events: false, bosses: false, speed: 1.0 }, bots: 3 },
+    { title: "demoC7t", text: "demoC7p", dur: 17000, room: { mode: 0, rows: null, events: false, bosses: false, speed: 1.0 }, bots: 3, tourn: true },
+    { title: "demoC8t", text: "demoC8p", dur: 13000, replays: true },
   ];
   let demoState = null; // { ch, timer, relaunch }
   const demoWait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1659,6 +1660,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const demoStop = () => {
     S.demoUserMove = 0;
+    if (S.replay) S.replay = null;
     if (demoState) { clearInterval(demoState.timer); clearInterval(demoState.relaunch); demoState = null; }
     if (demoCard()) demoCard().style.display = "none";
   };
@@ -1695,20 +1697,27 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!await demoCond(() => S.room && S.room.name === name, 5000)) { demoChapter(idx + 1); return; }
     for (let i = 0; i < ch.bots; i++) { send(P.mAddBot(2)); await demoWait(150); }
     await demoCond(() => S.room && S.room.players.length === 1 + ch.bots, 4000);
-    if (idx === 6) {
-      // турнир: старт сетки прямо из лобби (обычный матч не нужен)
+    if (ch.tourn) {
+      // турнир: старт сетки из лобби; показать КОМНАТУ со сеткой (дуёлы идут на фоне)
       send(P.mStartTournament());
       if (!await demoCond(() => S.room && S.room.tournament && S.room.tournament.current, 6000)) { demoTrans(null); demoChapter(idx + 1); return; }
-      await demoCond(() => !!S.latest, 8000);
-      showScreen("game");
-      demoState = { ch: idx, timer: setInterval(demoSweep, 50), relaunch: 0 };
-      // в дуёле тоже играем: запуск и перезапуск мяча
-      send(P.mAction());
-      demoState.relaunch = setInterval(() => {
-        if (S.latest && S.latest.phase === 1 && !S.latest.balls.some((b) => b.owner_id === S.myId)) send(P.mAction());
-      }, 1200);
-      await demoWait(600);
+      await demoWait(500);
       demoTrans(null);
+      demoShow(idx);
+      showScreen("room");
+      demoState = { ch: idx, timer: setInterval(() => showScreen("room"), 700), relaunch: 0 };
+      return;
+    }
+    if (ch.replays) {
+      // реплеи: меню -> список -> плеер
+      await demoLeave();
+      demoTrans(null);
+      showScreen("menu");
+      await demoWait(600);
+      if (window.__loadReplays) window.__loadReplays();
+      await demoWait(700);
+      document.querySelectorAll("#replays-list .map-row button")[0]?.click();
+      await demoWait(900);
       demoShow(idx);
       return;
     }
